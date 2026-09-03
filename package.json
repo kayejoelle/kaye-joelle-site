@@ -1,0 +1,9 @@
+{
+  "name": "kaye-joelle-creator-site",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Site vitrine + dashboard (Supabase + Cloudinary), déployé en statique sur Vercel.",
+  "scripts": {
+    "dev": "npx serve public"
+  }
+}

@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Kaye Joëlle Creator - UGC Creator Hotels | Spa &amp; wellness | Lifestyle</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,400;1,9..144,500&family=Italiana&family=Bodoni+Moda:ital,opsz,wght@0,6..96,400;0,6..96,500;0,6..96,600;0,6..96,700;0,6..96,800;1,6..96,400&family=Manrope:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<!-- ============================================================= NAV -->
+<header id="site-header">
+  <div class="container nav-inner">
+    <button class="nav-brand font-display" onclick="scrollToId('home')" id="nav-brand-btn">Kaye Joëlle Creator</button>
+    <nav class="nav-links">
+      <button class="nav-link" onclick="scrollToId('home')">Accueil</button>
+      <button class="nav-link" onclick="scrollToId('portfolio')">Portfolio</button>
+      <button class="nav-link" onclick="scrollToId('about')">À propos</button>
+      <button class="nav-link" onclick="scrollToId('services')">Services</button>
+      <button class="nav-link" onclick="scrollToId('contact')">Contact</button>
+    </nav>
+    <button class="nav-toggle" id="nav-toggle-btn" aria-label="Ouvrir le menu">☰</button>
+  </div>
+  <div id="mobile-menu" class="hidden">
+    <button class="nav-link" onclick="scrollToId('home')">Accueil</button>
+    <button class="nav-link" onclick="scrollToId('portfolio')">Portfolio</button>
+    <button class="nav-link" onclick="scrollToId('about')">À propos</button>
+    <button class="nav-link" onclick="scrollToId('services')">Services</button>
+    <button class="nav-link" onclick="scrollToId('contact')">Contact</button>
+  </div>
+</header>
+
+<!-- ============================================================= HERO -->
+<section id="home" class="hero">
+  <div class="hero-overlay"></div>
+  <div class="container hero-content">
+    <p class="eyebrow" id="hero-eyebrow"></p>
+    <h1 class="font-display" id="hero-name"></h1>
+    <p id="hero-tagline"></p>
+    <div class="hero-ctas">
+      <button class="btn-outline-light" onclick="scrollToId('portfolio')">Découvrir mon univers</button>
+      <button class="btn-solid" onclick="scrollToId('contact')">Collaborer avec moi</button>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================= INTRO -->
+<section class="intro-section">
+  <div class="container">
+    <p class="eyebrow" id="intro-eyebrow" style="margin-bottom: 1.75rem;"></p>
+    <div class="intro-grid reveal">
+      <div><div id="intro-media-wrap" class="intro-media"></div></div>
+      <div>
+        <p class="font-display" id="intro-heading"></p>
+        <p id="intro-body"></p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================= PORTFOLIO -->
+<section id="portfolio" class="portfolio-section">
+  <div class="container">
+    <div class="portfolio-head reveal">
+      <div>
+        <p class="eyebrow" style="color:var(--taupe); margin-bottom:0.75rem;">N°01 — Sélection</p>
+        <h2 class="font-display" style="font-weight:300; font-size:2rem; margin:0;">Portfolio éditorial</h2>
+      </div>
+      <div class="filter-row" id="portfolio-filters"></div>
+    </div>
+    <div class="masonry" id="portfolio-grid"></div>
+  </div>
+</section>
+
+<!-- ============================================================= STAT -->
+<section class="stat-section" id="stat-section-el">
+  <div class="container stat-inner reveal">
+    <p class="font-display stat-headline" id="stat-headline"></p>
+    <p class="stat-body" id="stat-body"></p>
+    <p class="eyebrow stat-attribution" id="stat-attribution"></p>
+  </div>
+</section>
+
+<!-- ============================================================= VIDEOS -->
+<section class="videos-section">
+  <div class="container">
+    <div class="reveal" style="margin-bottom:3rem;">
+      <p class="eyebrow" id="videos-eyebrow" style="color:var(--taupe); margin-bottom:0.75rem;"></p>
+      <h2 class="font-display" id="videos-heading" style="font-weight:300; font-size:2rem; max-width:32rem; margin:0;"></h2>
+    </div>
+    <div class="videos-grid" id="videos-grid"></div>
+  </div>
+</section>
+
+<!-- ============================================================= SERVICES -->
+<section id="services" class="services-section">
+  <div class="container">
+    <div class="reveal" style="margin-bottom:3rem;">
+      <p class="eyebrow" style="color:var(--taupe); margin-bottom:0.75rem;">N°03 — Prestations</p>
+      <h2 class="font-display" style="font-weight:300; font-size:2rem; margin:0;">Services</h2>
+    </div>
+    <div id="services-list"></div>
+    <div class="hairline"></div>
+  </div>
+</section>
+
+<!-- ============================================================= ABOUT -->
+<section id="about" class="about-section">
+  <div class="container about-grid">
+    <div class="about-photo reveal" id="about-media-wrap"></div>
+    <div class="reveal">
+      <p class="eyebrow" style="color:var(--taupe); margin-bottom:1rem;">N°04 — À propos</p>
+      <p id="about-quote"></p>
+      <p id="about-body1"></p>
+      <p id="about-body2"></p>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================= STAT 2 -->
+<section class="stat-section" id="stat2-section-el">
+  <div class="container stat-inner reveal">
+    <p class="font-display stat-headline" id="stat2-headline"></p>
+    <p class="stat-body" id="stat2-body"></p>
+    <p class="eyebrow stat-attribution" id="stat2-attribution"></p>
+  </div>
+</section>
+
+<!-- ============================================================= COLLABORATIONS -->
+<section class="collabs-section hidden" id="collabs-section">
+  <div class="container reveal" style="margin-bottom:2.5rem;">
+    <p class="eyebrow" style="color:var(--taupe); text-align:center;">Ils m'ont fait confiance</p>
+  </div>
+  <div class="marquee-wrap">
+    <div class="marquee-track" id="collabs-marquee"></div>
+  </div>
+</section>
+
+<!-- ============================================================= TESTIMONIALS -->
+<section class="testimonials-section hidden" id="testimonials-section">
+  <div class="testimonial-inner reveal">
+    <p style="color:var(--gold); text-align:center; margin-bottom:1.5rem; font-size:1.75rem;">❝</p>
+    <p id="testimonial-quote"></p>
+    <p id="testimonial-meta"></p>
+    <div class="testimonial-nav">
+      <button onclick="shiftTestimonial(-1)" aria-label="Témoignage précédent">‹</button>
+      <div id="testimonial-dots"></div>
+      <button onclick="shiftTestimonial(1)" aria-label="Témoignage suivant">›</button>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================= CONTACT -->
+<section id="contact" class="contact-section">
+  <div class="container contact-grid">
+    <div class="reveal">
+      <p class="eyebrow" style="color:var(--gold); margin-bottom:1rem;">Contact</p>
+      <h2 class="font-display" id="contact-headline"></h2>
+      <div class="contact-links">
+        <a id="contact-email-link" href="#">✉ <span id="contact-email-text"></span></a>
+        <a id="contact-instagram-link" href="#" target="_blank" rel="noreferrer" class="hidden">◎ <span id="contact-instagram-text"></span></a>
+      </div>
+    </div>
+    <div class="reveal">
+      <div id="contact-success" class="hidden">✓ Merci, votre message a bien été noté.</div>
+      <form id="contact-form" onsubmit="handleContactSubmit(event)">
+        <input required placeholder="Nom" class="input-line">
+        <input required type="email" placeholder="Email" class="input-line">
+        <input placeholder="Établissement / Marque" class="input-line">
+        <textarea required placeholder="Votre message" rows="3" class="input-line" style="resize:none;"></textarea>
+        <button type="submit" class="btn-outline-light" style="width:fit-content; display:flex; align-items:center; gap:8px;">Envoyer →</button>
+      </form>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="container footer-inner">
+    <p class="font-display" id="footer-name"></p>
+    <p id="footer-copyright"></p>
+  </div>
+</footer>
+
+<!-- ============================================================= LIGHTBOX -->
+<div id="lightbox" class="hidden">
+  <button id="lightbox-close" onclick="closeLightbox()" aria-label="Fermer">✕</button>
+  <div id="lightbox-inner">
+    <div id="lightbox-media"></div>
+    <div id="lightbox-text">
+      <p class="eyebrow" id="lightbox-category"></p>
+      <p class="title" id="lightbox-title"></p>
+      <p class="desc hidden" id="lightbox-desc"></p>
+      <p class="desc hidden" id="lightbox-novideo">Aucune vidéo associée pour le moment — seul l'aperçu est disponible.</p>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================= ADMIN -->
+<button id="admin-fab" onclick="openAdmin()" aria-label="Ouvrir le tableau de bord">⚙</button>
+
+<div id="admin-panel" class="hidden">
+  <div id="admin-backdrop" onclick="closeAdmin()"></div>
+  <div id="admin-drawer"></div>
+</div>
+
+<!-- Gabarit du tableau de bord, injecté dans #admin-drawer une fois authentifié -->
+<template id="admin-dashboard-template">
+  <div class="admin-head">
+    <h3>Tableau de bord</h3>
+    <div style="display:flex; align-items:center; gap:0.75rem;">
+      <button id="admin-logout-btn" class="btn-outline btn-small" type="button">Déconnexion</button>
+      <button onclick="closeAdmin()" aria-label="Fermer">✕</button>
+    </div>
+  </div>
+
+  <div class="admin-tabs">
+    <button class="admin-tab" data-tab="general">📝 Général</button>
+    <button class="admin-tab active" data-tab="projects">🗂 Portfolio</button>
+    <button class="admin-tab" data-tab="media" id="tab-btn-media">🖼 Médiathèque</button>
+    <button class="admin-tab" data-tab="videos" id="tab-btn-videos">🎬 Vidéos</button>
+    <button class="admin-tab" data-tab="testimonials">❝ Témoignages</button>
+    <button class="admin-tab" data-tab="collabs">🏛 Collaborations</button>
+  </div>
+
+  <div id="upload-errors" class="upload-errors hidden"></div>
+
+  <!-- ---------------- GÉNÉRAL ---------------- -->
+  <div id="tab-general" class="admin-tab-panel" data-tab="general">
+    <p class="admin-note">Modifiez les textes du site. Cliquez sur « Enregistrer » pour appliquer et sauvegarder vos changements — ils sont écrits directement en base de données et visibles par tous vos visiteurs immédiatement.</p>
+
+    <p class="admin-section-title">Accueil</p>
+    <div class="field-gap">
+      <div><label class="admin-label">Sur-titre</label><input class="admin-input" id="draft-heroEyebrow"></div>
+      <div><label class="admin-label">Nom</label><input class="admin-input" id="draft-heroName"></div>
+      <div><label class="admin-label">Accroche</label><textarea class="admin-input" id="draft-heroTagline" rows="2"></textarea></div>
+    </div>
+
+    <div class="hairline" style="padding-top:1.25rem;"></div>
+    <p class="admin-section-title">Introduction</p>
+    <div class="field-gap">
+      <div><label class="admin-label">Sur-titre</label><input class="admin-input" id="draft-introEyebrow"></div>
+      <div><label class="admin-label">Paragraphe principal</label><textarea class="admin-input" id="draft-introHeading" rows="3"></textarea></div>
+      <div><label class="admin-label">Paragraphe secondaire</label><textarea class="admin-input" id="draft-introBody" rows="2"></textarea></div>
+      <div><label class="admin-label">Image / vidéo</label><div id="intro-image-picker"></div></div>
+      <label class="checkbox-row"><input type="checkbox" id="draft-introTall"> Format portrait (image plus haute que large)</label>
+    </div>
+
+    <div class="hairline" style="padding-top:1.25rem;"></div>
+    <p class="admin-section-title">Formats verticaux (section vidéos)</p>
+    <div class="field-gap">
+      <div><label class="admin-label">Sur-titre</label><input class="admin-input" id="draft-videosEyebrow"></div>
+      <div><label class="admin-label">Titre</label><input class="admin-input" id="draft-videosHeading"></div>
+    </div>
+
+    <div class="hairline" style="padding-top:1.25rem;"></div>
+    <p class="admin-section-title">Chiffre clé (entre portfolio et vidéos)</p>
+    <div class="field-gap">
+      <label class="checkbox-row"><input type="checkbox" id="draft-statEnabled"> Afficher ce bloc sur le site</label>
+      <div><label class="admin-label">Phrase d'accroche</label><textarea class="admin-input" id="draft-statHeadline" rows="2"></textarea></div>
+      <div><label class="admin-label">Statistique / texte de contexte</label><textarea class="admin-input" id="draft-statBody" rows="2"></textarea></div>
+      <div><label class="admin-label">Fonction (affichée après votre nom)</label><input class="admin-input" id="draft-statRole"></div>
+      <button type="button" class="btn-outline btn-small" style="width:fit-content;" onclick="deleteStatBlock()">🗑 Vider le contenu de ce bloc</button>
+    </div>
+
+    <div class="hairline" style="padding-top:1.25rem;"></div>
+    <p class="admin-section-title">À propos</p>
+    <div class="field-gap">
+      <div><label class="admin-label">Citation</label><textarea class="admin-input" id="draft-aboutQuote" rows="2"></textarea></div>
+      <div><label class="admin-label">Paragraphe 1</label><textarea class="admin-input" id="draft-aboutBody1" rows="3"></textarea></div>
+      <div><label class="admin-label">Paragraphe 2</label><textarea class="admin-input" id="draft-aboutBody2" rows="3"></textarea></div>
+      <div><label class="admin-label">Photo / vidéo</label><div id="about-image-picker"></div></div>
+    </div>
+
+    <div class="hairline" style="padding-top:1.25rem;"></div>
+    <p class="admin-section-title">Satisfaction client</p>
+    <div class="field-gap">
+      <label class="checkbox-row"><input type="checkbox" id="draft-stat2Enabled"> Afficher ce bloc sur le site</label>
+      <div><label class="admin-label">Phrase d'accroche</label><textarea class="admin-input" id="draft-stat2Headline" rows="2"></textarea></div>
+      <div><label class="admin-label">Statistique / texte de contexte</label><textarea class="admin-input" id="draft-stat2Body" rows="2"></textarea></div>
+      <div><label class="admin-label">Fonction (affichée après votre nom)</label><input class="admin-input" id="draft-stat2Role"></div>
+      <button type="button" class="btn-outline btn-small" style="width:fit-content;" onclick="deleteStat2Block()">🗑 Vider le contenu de ce bloc</button>
+    </div>
+
+    <div class="hairline" style="padding-top:1.25rem;"></div>
+    <p class="admin-section-title">Contact</p>
+    <div class="field-gap">
+      <div><label class="admin-label">Titre de la section</label><input class="admin-input" id="draft-contactHeadline"></div>
+      <div><label class="admin-label">Email</label><input class="admin-input" id="draft-contactEmail"></div>
+      <div><label class="admin-label">Instagram (identifiant, sans @)</label><input class="admin-input" id="draft-contactInstagram"></div>
+    </div>
+
+    <div class="hairline" style="padding-top:1.25rem;"></div>
+    <p class="admin-section-title">Pied de page</p>
+    <div class="field-gap">
+      <div><label class="admin-label">Nom</label><input class="admin-input" id="draft-footerName"></div>
+      <div><label class="admin-label">Mention</label><input class="admin-input" id="draft-footerCopyright"></div>
+    </div>
+
+    <div class="form-buttons">
+      <button class="btn-solid btn-small" type="button" id="save-general-btn">Enregistrer les modifications</button>
+    </div>
+  </div>
+
+  <!-- ---------------- PORTFOLIO ---------------- -->
+  <div id="tab-projects" class="admin-tab-panel hidden" data-tab="projects">
+    <form id="project-form">
+      <p class="admin-section-title" id="project-form-title">Ajouter un projet</p>
+      <div class="field-gap">
+        <input class="admin-input" id="project-title-input" placeholder="Titre du projet">
+        <select class="admin-input" id="project-category-select"></select>
+        <div><p class="admin-label">Image / vidéo du projet</p><div id="project-image-picker"></div></div>
+        <textarea class="admin-input" id="project-description-input" placeholder="Courte description" rows="2"></textarea>
+        <label class="checkbox-row"><input type="checkbox" id="project-tall-checkbox"> Format portrait (image plus haute que large)</label>
+        <p id="project-form-error" class="admin-error hidden"></p>
+      </div>
+      <div class="form-buttons">
+        <button type="submit" class="btn-solid btn-small" id="project-submit-btn">＋ Ajouter</button>
+        <button type="button" class="btn-outline btn-small hidden" id="project-cancel-btn">Annuler</button>
+      </div>
+    </form>
+
+    <div class="hairline" style="padding-top:1.25rem; margin-top:1.75rem;">
+      <p class="admin-section-title" id="projects-count" style="margin:1rem 0;"></p>
+      <p class="admin-note">Glissez une carte (⠿) pour réordonner le portfolio.</p>
+    </div>
+    <div id="projects-list"></div>
+  </div>
+
+  <!-- ---------------- MÉDIATHÈQUE ---------------- -->
+  <div id="tab-media" class="admin-tab-panel hidden" data-tab="media">
+    <p class="admin-note">Glissez-déposez vos photos ou vidéos ici, ou cliquez pour parcourir vos fichiers. Elles sont importées sur Cloudinary et enregistrées de façon permanente dans la médiathèque.</p>
+    <div class="dropzone" id="media-dropzone">
+      <div>📤</div>
+      <p>Glissez vos fichiers ici, ou cliquez pour parcourir (images / vidéos)</p>
+      <input type="file" accept="image/*,video/*" multiple id="media-file-input">
+    </div>
+    <p id="media-uploading" class="hidden" style="font-size:0.72rem; opacity:0.6; margin-top:0.5rem;">Import en cours…</p>
+    <p class="admin-note" style="margin-top:1rem;">Glissez une vignette pour réorganiser la médiathèque.</p>
+    <div class="media-grid" id="media-grid"></div>
+    <p id="media-empty" class="hidden" style="font-size:0.72rem; opacity:0.5; text-align:center; padding:2.5rem 0;">Aucun média importé pour l'instant.</p>
+  </div>
+
+  <!-- ---------------- VIDÉOS ---------------- -->
+  <div id="tab-videos" class="admin-tab-panel hidden" data-tab="videos">
+    <p class="admin-note">Importez des vidéos verticales (format 9:16) pour la grille du site, ou collez un lien direct.</p>
+    <form id="video-form">
+      <p class="admin-section-title" id="video-form-title">Ajouter une vidéo</p>
+      <div class="field-gap">
+        <input class="admin-input" id="video-title-input" placeholder="Titre (optionnel)">
+        <div><p class="admin-label">Image de couverture (optionnel)</p><div id="video-poster-picker"></div></div>
+        <div><p class="admin-label">Fichier vidéo</p><div id="video-file-picker"></div></div>
+        <p id="video-form-error" class="admin-error hidden"></p>
+      </div>
+      <div class="form-buttons">
+        <button type="submit" class="btn-solid btn-small" id="video-submit-btn">＋ Ajouter</button>
+        <button type="button" class="btn-outline btn-small hidden" id="video-cancel-btn">Annuler</button>
+      </div>
+    </form>
+    <div class="hairline" style="padding-top:1.25rem; margin-top:1.75rem;">
+      <p class="admin-note">Glissez une carte (⠿) pour réordonner la grille vidéo.</p>
+    </div>
+    <div id="videos-list" style="margin-top:1rem;"></div>
+  </div>
+
+  <!-- ---------------- TÉMOIGNAGES ---------------- -->
+  <div id="tab-testimonials" class="admin-tab-panel hidden" data-tab="testimonials">
+    <form id="testimonial-form">
+      <p class="admin-section-title" id="testimonial-form-title">Ajouter un témoignage</p>
+      <div class="field-gap">
+        <textarea class="admin-input" id="testimonial-quote-input" placeholder="Citation" rows="3"></textarea>
+        <input class="admin-input" id="testimonial-name-input" placeholder="Nom / Fonction (optionnel)">
+        <input class="admin-input" id="testimonial-org-input" placeholder="Établissement (optionnel)">
+        <p id="testimonial-form-error" class="admin-error hidden"></p>
+      </div>
+      <div class="form-buttons">
+        <button type="submit" class="btn-solid btn-small" id="testimonial-submit-btn">＋ Ajouter</button>
+        <button type="button" class="btn-outline btn-small hidden" id="testimonial-cancel-btn">Annuler</button>
+      </div>
+    </form>
+    <div class="hairline" style="padding-top:1.25rem; margin-top:1.75rem;">
+      <p class="admin-section-title" id="testimonials-count" style="margin:1rem 0;"></p>
+    </div>
+    <div id="testimonials-list"></div>
+  </div>
+
+  <!-- ---------------- COLLABORATIONS ---------------- -->
+  <div id="tab-collabs" class="admin-tab-panel hidden" data-tab="collabs">
+    <p class="admin-note">Ajoutez les noms des hôtels, spas ou marques avec lesquels vous avez collaboré. Ils défilent automatiquement dans le bandeau du site.</p>
+    <label class="checkbox-row" style="margin-bottom:1.25rem;"><input type="checkbox" id="collabs-enabled-checkbox"> Afficher cette section sur le site</label>
+    <form id="collab-form" style="display:flex; gap:0.5rem; margin-bottom:1.5rem;">
+      <input class="admin-input" id="collab-name-input" placeholder="Nom de l'établissement">
+      <button type="submit" class="btn-solid btn-small" style="flex-shrink:0;">＋ Ajouter</button>
+    </form>
+    <div class="tags-wrap" id="collabs-tags"></div>
+    <p id="collabs-empty" class="hidden" style="font-size:0.72rem; opacity:0.5;">Aucune collaboration ajoutée.</p>
+  </div>
+</template>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="js/config.js"></script>
+<script src="js/supabaseClient.js"></script>
+<script src="js/db.js"></script>
+<script src="js/auth.js"></script>
+<script src="js/cloudinary.js"></script>
+<script src="js/site.js"></script>
+<script src="js/admin.js"></script>
+</body>
+</html>
