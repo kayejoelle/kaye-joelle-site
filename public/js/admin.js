@@ -41,7 +41,9 @@ async function openAdmin() {
 }
 
 function closeAdmin() {
-  document.getElementById("admin-panel").classList.add("hidden");
+  // Cette page est entièrement dédiée au tableau de bord : "fermer" ramène
+  // simplement vers le site public plutôt que de laisser une page vide.
+  window.location.href = "/";
 }
 
 Auth.onChange((session) => {
@@ -1260,9 +1262,6 @@ function getDragAfterElement(container, x, y, inline) {
 /* ------------------------------------------------------------------ */
 /* Utilitaires                                                          */
 /* ------------------------------------------------------------------ */
-
-function escapeHtml(str) {
-  return String(str == null ? "" : str)
-    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
-}
+/* escapeHtml, isSafeMediaUrl et cldOptimize vivent dans shared.js,     */
+/* chargé avant ce fichier sur toute page qui l'utilise — pas de        */
+/* duplication, et admin.js n'a plus besoin de site.js pour fonctionner.*/

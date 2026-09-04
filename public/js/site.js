@@ -425,15 +425,7 @@ function openLightbox(kind, index) {
   document.body.style.overflow = "hidden";
 }
 
-function closeLightbox() {
-  const lb = document.getElementById("lightbox");
-  const media = document.getElementById("lightbox-media");
-  if (!lb) return;
-  lb.classList.add("hidden");
-  lb.classList.remove("admin-preview-open");
-  if (media) media.innerHTML = ""; // stoppe la lecture vidéo
-  document.body.style.overflow = "";
-}
+/* closeLightbox() vit maintenant dans shared.js (réutilisée par le dashboard). */
 
 /* ------------------------------------------------------------------ */
 /* Formulaire de contact                                                */
@@ -489,41 +481,7 @@ async function handleContactSubmit(e) {
 }
 
 /* ------------------------------------------------------------------ */
-/* Utilitaires                                                          */
+/* Utilitaires spécifiques à l'affichage du site public                 */
+/* (escapeHtml, isSafeMediaUrl, cldOptimize vivent maintenant dans      */
+/* shared.js, chargé avant ce fichier — pas de duplication)             */
 /* ------------------------------------------------------------------ */
-
-function escapeHtml(str) {
-  return String(str == null ? "" : str)
-    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
-}
-
-/**
- * Insère des paramètres de transformation Cloudinary (format automatique,
- * qualité automatique, largeur plafonnée) dans une URL Cloudinary, pour ne
- * jamais charger une image/vidéo plus lourde que nécessaire à l'affichage.
- * Les URLs qui ne viennent pas de Cloudinary (lien externe collé à la main)
- * sont retournées telles quelles, sans y toucher.
- */
-/**
- * N'autorise que les URLs http(s) (ou les data: URI d'image, inoffensives)
- * comme source d'image/vidéo. Bloque explicitement javascript:, data:text/html
- * et autres schémas potentiellement exécutables, quelle que soit leur origine
- * (protection en profondeur, en plus de l'échappement HTML systématique).
- */
-function isSafeMediaUrl(url) {
-  if (!url) return false;
-  const trimmed = String(url).trim();
-  if (/^https:\/\//i.test(trimmed)) return true;
-  if (/^http:\/\//i.test(trimmed)) return true;
-  if (/^data:image\//i.test(trimmed)) return true;
-  return false;
-}
-
-function cldOptimize(url, width) {
-  if (!isSafeMediaUrl(url)) return "";
-  if (url.indexOf("res.cloudinary.com") === -1) return url;
-  if (url.indexOf("/upload/f_auto") !== -1) return url; // déjà optimisée
-  const params = "f_auto,q_auto,c_limit,w_" + (width || 1200);
-  return url.replace("/upload/", "/upload/" + params + "/");
-}
