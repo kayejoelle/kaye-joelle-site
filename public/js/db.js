@@ -163,10 +163,49 @@ const DB = (function () {
     return true;
   }
 
+  /* ------------------------------------------------------------------ */
+  /* Suppression définitive des fichiers Cloudinary (via fonction serveur) */
+  /* ------------------------------------------------------------------ */
+
+  /**
+   * Demande la suppression DÉFINITIVE d'un fichier sur Cloudinary.
+   * Passe par /api/delete-asset (fonction serveur Vercel) car la
+   * suppression Cloudinary nécessite la clé secrète, qui ne doit jamais
+   * être exposée dans le navigateur.
+   * @param {string} publicId
+   * @param {"image"|"video"} resourceType
+   */
+  async function deleteCloudinaryAsset(publicId, resourceType) {
+    if (!publicId) return { skipped: true };
+
+    const { data: sessionData, error: sessionError } = await client().auth.getSession();
+    throwIfError(sessionError, "Vérification de session");
+    const token = sessionData && sessionData.session ? sessionData.session.access_token : null;
+    if (!token) throw new Error("Session expirée — reconnectez-vous pour supprimer les fichiers.");
+
+    let res;
+    try {
+      res = await fetch("/api/delete-asset", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": "Bearer " + token },
+        body: JSON.stringify({ publicId, resourceType: resourceType === "video" ? "video" : "image" }),
+      });
+    } catch (networkErr) {
+      throw new Error("Suppression Cloudinary — erreur réseau : " + networkErr.message);
+    }
+
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      throw new Error((data && data.error) || ("Suppression Cloudinary refusée (" + res.status + ")."));
+    }
+    return data;
+  }
+
   return {
     getAllSiteContent, saveSiteContent,
     Projects, Videos, Testimonials, Collabs,
     listMedia, addMediaFromUpload, deleteMedia, reorderMedia,
+    deleteCloudinaryAsset,
     sendContactMessage, listContactMessages, markMessageRead,
   };
 })();

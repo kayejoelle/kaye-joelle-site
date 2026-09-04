@@ -3,11 +3,11 @@
    modifications sont écrites immédiatement dans Supabase (persistant,
    partagé par tous les visiteurs) et confirmées avant d'afficher "Enregistré".
 
-   NOTE TECHNIQUE (v2) : tous les boutons dynamiques (modifier / supprimer /
-   utiliser / aperçu) utilisent maintenant des attributs data-action / data-id
-   + un écouteur d'événement délégué par liste, au lieu d'attributs onclick
-   générés à la volée. C'est ce qui corrige les boutons qui ne répondaient
-   plus (un mélange de guillemets dans le HTML généré cassait le onclick).
+   v3 : chaque photo/vidéo est maintenant suivie avec son "public_id"
+   Cloudinary (pas seulement son URL). Supprimer ou remplacer un élément
+   déclenche une VRAIE suppression du fichier sur Cloudinary (via la
+   fonction serveur /api/delete-asset), en plus de la ligne en base de
+   données — plus aucun fichier orphelin.
    ========================================================================== */
 
 let adminState = {
@@ -192,7 +192,7 @@ function showToast(message, isError) {
   el.textContent = message;
   el.className = "admin-toast" + (isError ? " admin-toast-error" : "") + " visible";
   clearTimeout(el._timer);
-  el._timer = setTimeout(() => el.classList.remove("visible"), 3200);
+  el._timer = setTimeout(() => el.classList.remove("visible"), 3600);
 }
 
 function showAdminError(message) {
@@ -202,6 +202,30 @@ function showAdminError(message) {
   el.classList.remove("hidden");
   clearTimeout(el._timer);
   el._timer = setTimeout(() => el.classList.add("hidden"), 7000);
+}
+
+/* ------------------------------------------------------------------ */
+/* Suppression Cloudinary — helper commun à toutes les catégories       */
+/* ------------------------------------------------------------------ */
+
+/**
+ * items: [{ publicId, type } | null, ...] — supprime chaque fichier sur
+ * Cloudinary (best-effort : la ligne en base est déjà supprimée avant
+ * cet appel, on ne bloque donc jamais l'action de l'utilisateur pour ça).
+ * Retourne true si au moins une suppression a échoué (pour avertir).
+ */
+async function cleanupCloudinaryAssets(items) {
+  let anyFailed = false;
+  for (const item of (items || [])) {
+    if (!item || !item.publicId) continue;
+    try {
+      await DB.deleteCloudinaryAsset(item.publicId, item.type);
+    } catch (err) {
+      console.error("Échec de la suppression Cloudinary :", item, err);
+      anyFailed = true;
+    }
+  }
+  return anyFailed;
 }
 
 /* ------------------------------------------------------------------ */
@@ -260,15 +284,17 @@ function renderGeneralTab() {
   if (introTall) introTall.checked = c.introTall === "true";
 
   renderMediaPicker("intro-image-picker", {
-    imageValue: c.introImageUrl || "", videoValue: c.introVideoUrl || "",
-    onImageChange: (url) => { adminState.content.introImageUrl = url; },
-    onVideoChange: (url) => { adminState.content.introVideoUrl = url; },
+    imageValue: c.introImageUrl || "", imagePublicId: c.introImagePublicId || "",
+    videoValue: c.introVideoUrl || "", videoPublicId: c.introVideoPublicId || "",
+    onImageChange: (url, publicId) => { adminState.content.introImageUrl = url; adminState.content.introImagePublicId = publicId || ""; },
+    onVideoChange: (url, publicId) => { adminState.content.introVideoUrl = url; adminState.content.introVideoPublicId = publicId || ""; },
     withVideo: true,
   });
   renderMediaPicker("about-image-picker", {
-    imageValue: c.aboutImageUrl || "", videoValue: c.aboutVideoUrl || "",
-    onImageChange: (url) => { adminState.content.aboutImageUrl = url; },
-    onVideoChange: (url) => { adminState.content.aboutVideoUrl = url; },
+    imageValue: c.aboutImageUrl || "", imagePublicId: c.aboutImagePublicId || "",
+    videoValue: c.aboutVideoUrl || "", videoPublicId: c.aboutVideoPublicId || "",
+    onImageChange: (url, publicId) => { adminState.content.aboutImageUrl = url; adminState.content.aboutImagePublicId = publicId || ""; },
+    onVideoChange: (url, publicId) => { adminState.content.aboutVideoUrl = url; adminState.content.aboutVideoPublicId = publicId || ""; },
     withVideo: true,
   });
 }
@@ -286,9 +312,13 @@ async function saveSiteContent() {
     entries.stat2Enabled = document.getElementById("draft-stat2Enabled").checked ? "true" : "false";
     entries.introTall = document.getElementById("draft-introTall").checked ? "true" : "false";
     entries.introImageUrl = adminState.content.introImageUrl || "";
+    entries.introImagePublicId = adminState.content.introImagePublicId || "";
     entries.introVideoUrl = adminState.content.introVideoUrl || "";
+    entries.introVideoPublicId = adminState.content.introVideoPublicId || "";
     entries.aboutImageUrl = adminState.content.aboutImageUrl || "";
+    entries.aboutImagePublicId = adminState.content.aboutImagePublicId || "";
     entries.aboutVideoUrl = adminState.content.aboutVideoUrl || "";
+    entries.aboutVideoPublicId = adminState.content.aboutVideoPublicId || "";
 
     await DB.saveSiteContent(entries);
     adminState.content = Object.assign({}, adminState.content, entries);
@@ -321,15 +351,20 @@ function deleteStat2Block() {
    ====================================================================== */
 
 let pickerCounter = 0;
+const pickerRegistry = {}; // uid -> options (permet à la médiathèque d'appeler les bons callbacks)
 
 /**
- * options: { imageValue, videoValue, onImageChange, onVideoChange, withVideo }
+ * options: {
+ *   imageValue, imagePublicId, videoValue, videoPublicId,
+ *   onImageChange(url, publicId), onVideoChange(url, publicId), withVideo
+ * }
  * Si withVideo=false, gère uniquement une image.
  */
 function renderMediaPicker(containerId, options) {
   const container = document.getElementById(containerId);
   if (!container) return;
   const uid = "picker" + (++pickerCounter);
+  pickerRegistry[uid] = options;
 
   container.innerHTML =
     '<div class="dropzone compact" id="' + uid + '-dz">' +
@@ -349,14 +384,15 @@ function renderMediaPicker(containerId, options) {
 
   const urlInput = document.getElementById(uid + "-url");
   urlInput.addEventListener("input", () => {
-    options.onImageChange(urlInput.value.trim());
+    // Saisie manuelle : on ne connaît plus le public_id Cloudinary associé.
+    options.onImageChange(urlInput.value.trim(), null);
     renderPickerPreview(uid, urlInput.value.trim(), options.withVideo ? document.getElementById(uid + "-video-url").value.trim() : "");
   });
 
   if (options.withVideo) {
     const videoUrlInput = document.getElementById(uid + "-video-url");
     videoUrlInput.addEventListener("input", () => {
-      options.onVideoChange(videoUrlInput.value.trim());
+      options.onVideoChange(videoUrlInput.value.trim(), null);
       renderPickerPreview(uid, urlInput.value.trim(), videoUrlInput.value.trim());
     });
   }
@@ -377,10 +413,10 @@ function renderMediaPicker(containerId, options) {
       adminState.media = await DB.listMedia();
       if (result.resourceType === "video" && options.withVideo) {
         document.getElementById(uid + "-video-url").value = result.url;
-        options.onVideoChange(result.url);
+        options.onVideoChange(result.url, result.publicId);
       } else {
         urlInput.value = result.url;
-        options.onImageChange(result.url);
+        options.onImageChange(result.url, result.publicId);
       }
       renderPickerPreview(uid, urlInput.value, options.withVideo ? document.getElementById(uid + "-video-url").value : "");
       showToast("Fichier importé et enregistré.");
@@ -428,26 +464,35 @@ function useMediaInPendingTarget(mediaId) {
   const mediaItem = adminState.media.find((m) => m.id === mediaId);
   if (!mediaItem) return;
   if (!target) {
-    // Pas de picker en attente : on copie simplement l'URL dans le presse-papiers si possible.
     showToast("Ouvrez d'abord « Parcourir la médiathèque » depuis un champ pour associer ce média.");
     return;
   }
+  const options = pickerRegistry[target.pickerUid];
+  if (!options) return;
+
   const isVideo = mediaItem.type === "video";
-  let filledInput = null;
-  if (isVideo && target.withVideo) {
-    filledInput = document.getElementById(target.pickerUid + "-video-url");
-  } else if (!isVideo) {
-    filledInput = document.getElementById(target.pickerUid + "-url");
-  } else {
+  if (isVideo && !target.withVideo) {
     showToast("Ce champ n'accepte pas de vidéo.", true);
     return;
   }
-  if (filledInput) {
-    filledInput.value = mediaItem.url;
-    filledInput.dispatchEvent(new Event("input"));
-    const parentPanel = filledInput.closest(".admin-tab-panel[data-tab]");
-    if (parentPanel) setAdminTab(parentPanel.dataset.tab);
+
+  if (isVideo) {
+    options.onVideoChange(mediaItem.url, mediaItem.public_id);
+    const input = document.getElementById(target.pickerUid + "-video-url");
+    if (input) input.value = mediaItem.url;
+  } else {
+    options.onImageChange(mediaItem.url, mediaItem.public_id);
+    const input = document.getElementById(target.pickerUid + "-url");
+    if (input) input.value = mediaItem.url;
   }
+
+  const urlInputEl = document.getElementById(target.pickerUid + "-url");
+  const videoInputEl = document.getElementById(target.pickerUid + "-video-url");
+  renderPickerPreview(target.pickerUid, urlInputEl ? urlInputEl.value : "", videoInputEl ? videoInputEl.value : "");
+
+  const parentPanel = urlInputEl && urlInputEl.closest(".admin-tab-panel[data-tab]");
+  if (parentPanel) setAdminTab(parentPanel.dataset.tab);
+
   adminState.mediaPickTarget = null;
   showToast("Média sélectionné.");
 }
@@ -458,17 +503,18 @@ function useMediaInPendingTarget(mediaId) {
 
 const PROJECT_CATEGORIES = ["Hôtels & Resorts", "Spas & Wellness", "Restaurants & Gastronomie", "Travel & Experiences", "Lifestyle"];
 
-let projectDraftImageUrl = "";
-let projectDraftVideoUrl = "";
+let projectDraft = { imageUrl: "", imagePublicId: "", videoUrl: "", videoPublicId: "" };
 
 function renderProjectsTab() {
   document.getElementById("project-category-select").innerHTML =
     PROJECT_CATEGORIES.map((c) => '<option value="' + escapeHtml(c) + '">' + escapeHtml(c) + '</option>').join("");
 
   renderMediaPicker("project-image-picker", {
-    imageValue: projectDraftImageUrl, videoValue: projectDraftVideoUrl, withVideo: true,
-    onImageChange: (u) => { projectDraftImageUrl = u; },
-    onVideoChange: (u) => { projectDraftVideoUrl = u; },
+    imageValue: projectDraft.imageUrl, imagePublicId: projectDraft.imagePublicId,
+    videoValue: projectDraft.videoUrl, videoPublicId: projectDraft.videoPublicId,
+    withVideo: true,
+    onImageChange: (u, pid) => { projectDraft.imageUrl = u; projectDraft.imagePublicId = pid || ""; },
+    onVideoChange: (u, pid) => { projectDraft.videoUrl = u; projectDraft.videoPublicId = pid || ""; },
   });
 
   document.getElementById("projects-count").textContent = adminState.projects.length + " projet" + (adminState.projects.length > 1 ? "s" : "");
@@ -524,16 +570,26 @@ async function handleProjectSubmit(e) {
   const errEl = document.getElementById("project-form-error");
   errEl.classList.add("hidden");
 
-  if (!title || !projectDraftImageUrl) {
+  if (!title || !projectDraft.imageUrl) {
     errEl.textContent = "Un titre et une image sont requis.";
     errEl.classList.remove("hidden");
     return;
   }
 
+  // Capture l'ancien fichier AVANT d'écraser, pour pouvoir le nettoyer sur Cloudinary
+  // si on vient de le remplacer par un nouveau (évite les fichiers orphelins).
+  const previous = adminState.editingProjectId
+    ? adminState.projects.find((x) => x.id === adminState.editingProjectId)
+    : null;
+
   const btn = document.getElementById("project-submit-btn");
   const done = setBusy(btn, adminState.editingProjectId ? "Modification…" : "Ajout…");
   try {
-    const fields = { title, category, description, tall, image_url: projectDraftImageUrl, video_url: projectDraftVideoUrl };
+    const fields = {
+      title, category, description, tall,
+      image_url: projectDraft.imageUrl, image_public_id: projectDraft.imagePublicId,
+      video_url: projectDraft.videoUrl, video_public_id: projectDraft.videoPublicId,
+    };
     if (adminState.editingProjectId) {
       await DB.Projects.update(adminState.editingProjectId, fields);
     } else {
@@ -544,6 +600,18 @@ async function handleProjectSubmit(e) {
     resetProjectForm();
     done("✓ Fait");
     showToast("Projet enregistré.");
+
+    // Nettoyage best-effort des anciens fichiers remplacés (silencieux).
+    if (previous) {
+      const toClean = [];
+      if (previous.image_public_id && previous.image_public_id !== fields.image_public_id) {
+        toClean.push({ publicId: previous.image_public_id, type: "image" });
+      }
+      if (previous.video_public_id && previous.video_public_id !== fields.video_public_id) {
+        toClean.push({ publicId: previous.video_public_id, type: "video" });
+      }
+      if (toClean.length) cleanupCloudinaryAssets(toClean);
+    }
   } catch (err) {
     console.error(err);
     done(adminState.editingProjectId ? "Modifier" : "＋ Ajouter", true);
@@ -560,12 +628,16 @@ function editProject(id) {
   document.getElementById("project-category-select").value = p.category || "";
   document.getElementById("project-description-input").value = p.description || "";
   document.getElementById("project-tall-checkbox").checked = !!p.tall;
-  projectDraftImageUrl = p.image_url || "";
-  projectDraftVideoUrl = p.video_url || "";
+  projectDraft = {
+    imageUrl: p.image_url || "", imagePublicId: p.image_public_id || "",
+    videoUrl: p.video_url || "", videoPublicId: p.video_public_id || "",
+  };
   renderMediaPicker("project-image-picker", {
-    imageValue: projectDraftImageUrl, videoValue: projectDraftVideoUrl, withVideo: true,
-    onImageChange: (u) => { projectDraftImageUrl = u; },
-    onVideoChange: (u) => { projectDraftVideoUrl = u; },
+    imageValue: projectDraft.imageUrl, imagePublicId: projectDraft.imagePublicId,
+    videoValue: projectDraft.videoUrl, videoPublicId: projectDraft.videoPublicId,
+    withVideo: true,
+    onImageChange: (u, pid) => { projectDraft.imageUrl = u; projectDraft.imagePublicId = pid || ""; },
+    onVideoChange: (u, pid) => { projectDraft.videoUrl = u; projectDraft.videoPublicId = pid || ""; },
   });
   document.getElementById("project-form-title").textContent = "Modifier le projet";
   document.getElementById("project-submit-btn").textContent = "Modifier";
@@ -578,11 +650,12 @@ function resetProjectForm() {
   document.getElementById("project-title-input").value = "";
   document.getElementById("project-description-input").value = "";
   document.getElementById("project-tall-checkbox").checked = false;
-  projectDraftImageUrl = ""; projectDraftVideoUrl = "";
+  projectDraft = { imageUrl: "", imagePublicId: "", videoUrl: "", videoPublicId: "" };
   renderMediaPicker("project-image-picker", {
-    imageValue: "", videoValue: "", withVideo: true,
-    onImageChange: (u) => { projectDraftImageUrl = u; },
-    onVideoChange: (u) => { projectDraftVideoUrl = u; },
+    imageValue: "", imagePublicId: "", videoValue: "", videoPublicId: "",
+    withVideo: true,
+    onImageChange: (u, pid) => { projectDraft.imageUrl = u; projectDraft.imagePublicId = pid || ""; },
+    onVideoChange: (u, pid) => { projectDraft.videoUrl = u; projectDraft.videoPublicId = pid || ""; },
   });
   document.getElementById("project-form-title").textContent = "Ajouter un projet";
   document.getElementById("project-submit-btn").textContent = "＋ Ajouter";
@@ -591,12 +664,21 @@ function resetProjectForm() {
 }
 
 async function deleteProject(id) {
-  if (!confirm("Supprimer ce projet du portfolio ? Cette action est définitive.")) return;
+  if (!confirm("Supprimer définitivement ce projet, y compris ses fichiers sur Cloudinary ? Cette action est irréversible.")) return;
+  const p = adminState.projects.find((x) => x.id === id);
   try {
     await DB.Projects.remove(id);
     await refreshEntity("projects");
     if (adminState.editingProjectId === id) resetProjectForm();
-    showToast("Projet supprimé.");
+
+    const failed = await cleanupCloudinaryAssets([
+      p && p.image_public_id ? { publicId: p.image_public_id, type: "image" } : null,
+      p && p.video_public_id ? { publicId: p.video_public_id, type: "video" } : null,
+    ]);
+    showToast(
+      failed ? "Projet supprimé (fichier Cloudinary à vérifier manuellement)." : "Projet supprimé définitivement.",
+      failed
+    );
   } catch (err) {
     showAdminError(err.message);
   }
@@ -645,7 +727,6 @@ function handleMediaGridClick(e) {
     else if (action === "delete") deleteMediaItem(id);
     return;
   }
-  // clic sur la vignette elle-même (hors boutons) → aperçu
   const thumb = e.target.closest(".media-thumb");
   if (thumb) {
     const m = adminState.media.find((x) => x.id === thumb.dataset.id);
@@ -676,11 +757,16 @@ async function handleMediaUpload(files) {
 }
 
 async function deleteMediaItem(id) {
-  if (!confirm("Supprimer ce média de la médiathèque ? (Le fichier restera sur Cloudinary mais ne sera plus proposé ici.)")) return;
+  if (!confirm("Supprimer définitivement ce média (fichier Cloudinary compris) ? Cette action est irréversible.")) return;
+  const m = adminState.media.find((x) => x.id === id);
   try {
     await DB.deleteMedia(id);
     await refreshEntity("media");
-    showToast("Média supprimé de la médiathèque.");
+    const failed = await cleanupCloudinaryAssets([m ? { publicId: m.public_id, type: m.type } : null]);
+    showToast(
+      failed ? "Média supprimé (fichier Cloudinary à vérifier manuellement)." : "Média supprimé définitivement.",
+      failed
+    );
   } catch (err) {
     showAdminError(err.message);
   }
@@ -690,15 +776,15 @@ async function deleteMediaItem(id) {
    ONGLET VIDÉOS (reel_videos)
    ====================================================================== */
 
-let videoDraftPosterUrl = "";
-let videoDraftVideoUrl = "";
+let videoDraft = { posterUrl: "", posterPublicId: "", videoUrl: "", videoPublicId: "" };
 
 function renderVideosTab() {
   document.getElementById("tab-btn-videos").textContent = "🎬 Vidéos (" + adminState.videos.length + ")";
 
   renderMediaPicker("video-poster-picker", {
-    imageValue: videoDraftPosterUrl, withVideo: false,
-    onImageChange: (u) => { videoDraftPosterUrl = u; },
+    imageValue: videoDraft.posterUrl, imagePublicId: videoDraft.posterPublicId,
+    withVideo: false,
+    onImageChange: (u, pid) => { videoDraft.posterUrl = u; videoDraft.posterPublicId = pid || ""; },
   });
   renderVideoFilePicker();
 
@@ -748,13 +834,14 @@ function renderVideoFilePicker() {
     '<div class="dropzone compact" id="videoFileDz"><div>🎬</div><p>Glissez un fichier vidéo ici, ou cliquez</p><input type="file" accept="video/*" id="videoFileInput"></div>' +
     '<div class="picker-progress hidden" id="videoFileProgress"><div class="picker-progress-fill" style="width:0%"></div></div>' +
     '<p class="picker-or">— ou —</p>' +
-    '<input class="admin-input" id="videoFileUrlInput" placeholder="Coller un lien vidéo direct (mp4, Vimeo…)" value="' + escapeHtml(videoDraftVideoUrl) + '">' +
+    '<input class="admin-input" id="videoFileUrlInput" placeholder="Coller un lien vidéo direct (mp4, Vimeo…)" value="' + escapeHtml(videoDraft.videoUrl) + '">' +
     '<div class="picker-preview" id="videoFilePreview"></div>';
 
   renderVideoFilePreview();
 
   document.getElementById("videoFileUrlInput").addEventListener("input", (e) => {
-    videoDraftVideoUrl = e.target.value.trim();
+    videoDraft.videoUrl = e.target.value.trim();
+    videoDraft.videoPublicId = ""; // saisie manuelle : public_id inconnu
     renderVideoFilePreview();
   });
   wireDropzone("videoFileDz", "videoFileInput", async (files) => {
@@ -767,7 +854,8 @@ function renderVideoFilePicker() {
       const result = await uploadToCloudinary(file, (pct) => { progressFill.style.width = pct + "%"; });
       await DB.addMediaFromUpload(result, file.name);
       adminState.media = await DB.listMedia();
-      videoDraftVideoUrl = result.url;
+      videoDraft.videoUrl = result.url;
+      videoDraft.videoPublicId = result.publicId;
       document.getElementById("videoFileUrlInput").value = result.url;
       renderVideoFilePreview();
       showToast("Vidéo importée.");
@@ -783,8 +871,8 @@ function renderVideoFilePicker() {
 function renderVideoFilePreview() {
   const el = document.getElementById("videoFilePreview");
   if (!el) return;
-  el.innerHTML = videoDraftVideoUrl
-    ? '<video src="' + escapeHtml(videoDraftVideoUrl) + '" muted loop autoplay playsinline></video>'
+  el.innerHTML = videoDraft.videoUrl
+    ? '<video src="' + escapeHtml(videoDraft.videoUrl) + '" muted loop autoplay playsinline></video>'
     : "";
 }
 
@@ -802,16 +890,24 @@ async function handleVideoSubmit(e) {
   const errEl = document.getElementById("video-form-error");
   errEl.classList.add("hidden");
 
-  if (!videoDraftVideoUrl && !videoDraftPosterUrl) {
+  if (!videoDraft.videoUrl && !videoDraft.posterUrl) {
     errEl.textContent = "Ajoutez au moins une vidéo ou une image de couverture.";
     errEl.classList.remove("hidden");
     return;
   }
 
+  const previous = adminState.editingVideoId
+    ? adminState.videos.find((x) => x.id === adminState.editingVideoId)
+    : null;
+
   const btn = document.getElementById("video-submit-btn");
   const done = setBusy(btn, adminState.editingVideoId ? "Modification…" : "Ajout…");
   try {
-    const fields = { title, poster_url: videoDraftPosterUrl, video_url: videoDraftVideoUrl };
+    const fields = {
+      title,
+      poster_url: videoDraft.posterUrl, poster_public_id: videoDraft.posterPublicId,
+      video_url: videoDraft.videoUrl, video_public_id: videoDraft.videoPublicId,
+    };
     if (adminState.editingVideoId) {
       await DB.Videos.update(adminState.editingVideoId, fields);
     } else {
@@ -822,6 +918,17 @@ async function handleVideoSubmit(e) {
     resetVideoForm();
     done("✓ Fait");
     showToast("Vidéo enregistrée.");
+
+    if (previous) {
+      const toClean = [];
+      if (previous.poster_public_id && previous.poster_public_id !== fields.poster_public_id) {
+        toClean.push({ publicId: previous.poster_public_id, type: "image" });
+      }
+      if (previous.video_public_id && previous.video_public_id !== fields.video_public_id) {
+        toClean.push({ publicId: previous.video_public_id, type: "video" });
+      }
+      if (toClean.length) cleanupCloudinaryAssets(toClean);
+    }
   } catch (err) {
     console.error(err);
     done(adminState.editingVideoId ? "Modifier" : "＋ Ajouter", true);
@@ -835,8 +942,10 @@ function editVideoItem(id) {
   if (!v) return;
   adminState.editingVideoId = id;
   document.getElementById("video-title-input").value = v.title || "";
-  videoDraftPosterUrl = v.poster_url || "";
-  videoDraftVideoUrl = v.video_url || "";
+  videoDraft = {
+    posterUrl: v.poster_url || "", posterPublicId: v.poster_public_id || "",
+    videoUrl: v.video_url || "", videoPublicId: v.video_public_id || "",
+  };
   renderVideosTab();
   document.getElementById("video-form-title").textContent = "Modifier la vidéo";
   document.getElementById("video-submit-btn").textContent = "Modifier";
@@ -847,7 +956,7 @@ function editVideoItem(id) {
 function resetVideoForm() {
   adminState.editingVideoId = null;
   document.getElementById("video-title-input").value = "";
-  videoDraftPosterUrl = ""; videoDraftVideoUrl = "";
+  videoDraft = { posterUrl: "", posterPublicId: "", videoUrl: "", videoPublicId: "" };
   renderVideosTab();
   document.getElementById("video-form-title").textContent = "Ajouter une vidéo";
   document.getElementById("video-submit-btn").textContent = "＋ Ajouter";
@@ -856,12 +965,21 @@ function resetVideoForm() {
 }
 
 async function deleteVideoItem(id) {
-  if (!confirm("Supprimer cette vidéo ? Cette action est définitive.")) return;
+  if (!confirm("Supprimer définitivement cette vidéo, y compris ses fichiers sur Cloudinary ? Cette action est irréversible.")) return;
+  const v = adminState.videos.find((x) => x.id === id);
   try {
     await DB.Videos.remove(id);
     await refreshEntity("videos");
     if (adminState.editingVideoId === id) resetVideoForm();
-    showToast("Vidéo supprimée.");
+
+    const failed = await cleanupCloudinaryAssets([
+      v && v.poster_public_id ? { publicId: v.poster_public_id, type: "image" } : null,
+      v && v.video_public_id ? { publicId: v.video_public_id, type: "video" } : null,
+    ]);
+    showToast(
+      failed ? "Vidéo supprimée (fichier Cloudinary à vérifier manuellement)." : "Vidéo supprimée définitivement.",
+      failed
+    );
   } catch (err) {
     showAdminError(err.message);
   }
@@ -964,12 +1082,12 @@ function resetTestimonialForm() {
 }
 
 async function deleteTestimonialItem(id) {
-  if (!confirm("Supprimer ce témoignage ?")) return;
+  if (!confirm("Supprimer définitivement ce témoignage ?")) return;
   try {
     await DB.Testimonials.remove(id);
     await refreshEntity("testimonials");
     if (adminState.editingTestimonialId === id) resetTestimonialForm();
-    showToast("Témoignage supprimé.");
+    showToast("Témoignage supprimé définitivement.");
   } catch (err) {
     showAdminError(err.message);
   }
@@ -1031,10 +1149,11 @@ async function handleCollabSubmit(e) {
 }
 
 async function removeCollabItem(id) {
+  if (!confirm("Retirer définitivement cette collaboration ?")) return;
   try {
     await DB.Collabs.remove(id);
     await refreshEntity("collabs");
-    showToast("Collaboration retirée.");
+    showToast("Collaboration supprimée définitivement.");
   } catch (err) {
     showAdminError(err.message);
   }
