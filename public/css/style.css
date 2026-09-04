@@ -325,5 +325,19 @@
 
 .badge { background: rgba(59,42,30,0.1); color: var(--chocolate); }
 
+/* Champ piège anti-robots (honeypot) : invisible pour une personne réelle,
+   mais présent dans le DOM et généralement rempli par les bots automatisés.
+   display:none est volontairement évité (certains bots l'ignorent) au
+   profit d'un positionnement hors écran. */
+.hp-field {
+  position: absolute !important;
+  left: -9999px !important;
+  top: -9999px !important;
+  width: 1px !important;
+  height: 1px !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
 /* Aperçu média ouvert depuis le dashboard : doit passer au-dessus du panneau admin */
 #lightbox.admin-preview-open { z-index: 100; }

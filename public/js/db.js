@@ -144,12 +144,11 @@ const DB = (function () {
   /* contact_messages                                                     */
   /* ------------------------------------------------------------------ */
 
-  async function sendContactMessage(fields) {
-    const { data, error } = await client().from("contact_messages").insert(fields).select().single();
-    throwIfError(error, "Envoi du message");
-    if (!data) throw new Error("L'envoi n'a pas pu être confirmé.");
-    return data;
-  }
+  /* NOTE SÉCURITÉ : l'envoi du formulaire de contact ne passe plus par ici.
+     Il transite exclusivement par /api/contact (voir public/js/site.js),
+     qui applique validation, anti-spam et sanitisation côté serveur avant
+     d'écrire en base avec la clé service_role. L'insertion publique directe
+     a été fermée (voir supabase/secure_contact_messages.sql). */
 
   async function listContactMessages() {
     const { data, error } = await client().from("contact_messages").select("*").order("created_at", { ascending: false });
@@ -206,7 +205,7 @@ const DB = (function () {
     Projects, Videos, Testimonials, Collabs,
     listMedia, addMediaFromUpload, deleteMedia, reorderMedia,
     deleteCloudinaryAsset,
-    sendContactMessage, listContactMessages, markMessageRead,
+    listContactMessages, markMessageRead,
   };
 })();
 

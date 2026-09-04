@@ -440,7 +440,7 @@ async function handleContactSubmit(e) {
   e.preventDefault();
   const form = e.target;
   const inputs = form.querySelectorAll("input, textarea");
-  const [nameEl, emailEl, companyEl, messageEl] = inputs;
+  const [nameEl, emailEl, companyEl, messageEl, honeypotEl] = inputs;
   const submitBtn = form.querySelector("button[type=submit]");
   const originalLabel = submitBtn ? submitBtn.textContent : "";
 
@@ -449,24 +449,21 @@ async function handleContactSubmit(e) {
     email: emailEl.value.trim(),
     company: companyEl.value.trim(),
     message: messageEl.value.trim(),
+    website: honeypotEl ? honeypotEl.value : "", // champ piège anti-robots
   };
 
   if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = "Envoi…"; }
   try {
-    // 1. Sauvegarde permanente en base (toujours consultable depuis Supabase).
-    await DB.sendContactMessage(payload);
-
-    // 2. Notification par email (best-effort : si l'envoi d'email échoue,
-    //    le message reste bien enregistré en base, on ne bloque pas la
-    //    personne qui vient d'écrire — l'erreur est seulement journalisée).
-    try {
-      await fetch("/api/send-contact-email", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-    } catch (emailErr) {
-      console.warn("Notification email non envoyée :", emailErr);
+    // Un seul point d'entrée, entièrement côté serveur : validation, anti-spam,
+    // écriture en base et email de notification y sont tous gérés (voir /api/contact).
+    const res = await fetch("/api/contact", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      throw new Error((data && data.error) || "Le message n'a pas pu être envoyé.");
     }
 
     form.reset();
@@ -482,7 +479,7 @@ async function handleContactSubmit(e) {
     }, 60000);
   } catch (err) {
     console.error(err);
-    alert("Le message n'a pas pu être envoyé. Merci de réessayer dans un instant.");
+    alert(err.message || "Le message n'a pas pu être envoyé. Merci de réessayer dans un instant.");
   } finally {
     if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = originalLabel; }
   }

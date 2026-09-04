@@ -167,10 +167,14 @@
     <div class="reveal">
       <div id="contact-success" class="hidden">✓ Merci, votre message a bien été noté.</div>
       <form id="contact-form" onsubmit="handleContactSubmit(event)">
-        <input required placeholder="Nom" class="input-line">
-        <input required type="email" placeholder="Email" class="input-line">
-        <input placeholder="Établissement / Marque" class="input-line">
-        <textarea required placeholder="Votre message" rows="3" class="input-line" style="resize:none;"></textarea>
+        <input required placeholder="Nom" class="input-line" maxlength="200">
+        <input required type="email" placeholder="Email" class="input-line" maxlength="254">
+        <input placeholder="Établissement / Marque" class="input-line" maxlength="200">
+        <textarea required placeholder="Votre message" rows="3" class="input-line" style="resize:none;" maxlength="5000"></textarea>
+        <!-- Champ piège anti-robots : invisible et inatteignable pour une personne réelle.
+             Ne jamais retirer "aria-hidden"/"tabindex" ci-dessous, c'est ce qui le rend
+             invisible pour les humains tout en restant rempli par la plupart des bots. -->
+        <input type="text" name="website" class="hp-field" tabindex="-1" autocomplete="off" aria-hidden="true">
         <button type="submit" class="btn-outline-light" style="width:fit-content; display:flex; align-items:center; gap:8px;">Envoyer →</button>
       </form>
     </div>
