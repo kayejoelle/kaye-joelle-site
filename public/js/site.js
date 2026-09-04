@@ -189,9 +189,9 @@ function renderHeroBg() {
   const videoUrl = txt("heroBackgroundVideoUrl");
   const imageUrl = txt("heroBackgroundImageUrl");
   if (videoUrl) {
-    wrap.innerHTML = '<video src="' + escapeHtml(videoUrl) + '" autoplay muted loop playsinline></video>';
+    wrap.innerHTML = '<video src="' + escapeHtml(cldOptimize(videoUrl, 1920)) + '" autoplay muted loop playsinline preload="auto"></video>';
   } else if (imageUrl) {
-    wrap.innerHTML = '<img src="' + escapeHtml(imageUrl) + '" alt="">';
+    wrap.innerHTML = '<img src="' + escapeHtml(cldOptimize(imageUrl, 1920)) + '" alt="" fetchpriority="high">';
   } else {
     wrap.innerHTML = "";
   }
@@ -205,9 +205,9 @@ function renderIntroMedia() {
   const tall = txt("introTall") === "true";
   const ratio = tall ? "3/4" : "1/1";
   if (videoUrl) {
-    wrap.innerHTML = '<video src="' + escapeHtml(videoUrl) + '" style="aspect-ratio:' + ratio + '" autoplay muted loop playsinline></video>';
+    wrap.innerHTML = '<video src="' + escapeHtml(cldOptimize(videoUrl, 1000)) + '" style="aspect-ratio:' + ratio + '" autoplay muted loop playsinline preload="metadata"></video>';
   } else if (imageUrl) {
-    wrap.innerHTML = '<img src="' + escapeHtml(imageUrl) + '" alt="" style="aspect-ratio:' + ratio + '">';
+    wrap.innerHTML = '<img src="' + escapeHtml(cldOptimize(imageUrl, 1000)) + '" alt="" style="aspect-ratio:' + ratio + '" loading="lazy" decoding="async">';
   } else {
     wrap.innerHTML = '<div class="no-poster" style="aspect-ratio:' + ratio + '">📷</div>';
   }
@@ -220,10 +220,10 @@ function renderAboutMedia() {
   const imageUrl = txt("aboutImageUrl");
   if (videoUrl) {
     wrap.innerHTML =
-      '<video id="about-video-el" src="' + escapeHtml(videoUrl) + '" autoplay muted loop playsinline></video>' +
+      '<video id="about-video-el" src="' + escapeHtml(cldOptimize(videoUrl, 1000)) + '" autoplay muted loop playsinline preload="metadata"></video>' +
       '<button type="button" class="media-sound-toggle" id="about-sound-toggle" onclick="toggleAboutVideoSound()" aria-label="Activer le son">🔇</button>';
   } else if (imageUrl) {
-    wrap.innerHTML = '<img src="' + escapeHtml(imageUrl) + '" alt="">';
+    wrap.innerHTML = '<img src="' + escapeHtml(cldOptimize(imageUrl, 1000)) + '" alt="" loading="lazy" decoding="async">';
   } else {
     wrap.innerHTML = '<div class="no-poster">📷</div>';
   }
@@ -267,7 +267,7 @@ function renderPortfolioGrid() {
   const items = siteState.projects.filter((p) => siteState.activeCategory === "Tous" || p.category === siteState.activeCategory);
   grid.innerHTML = items.map((p, i) =>
     '<button class="masonry-item reveal" style="transition-delay:' + ((i % 3) * 100) + 'ms" onclick="openLightbox(\'project\',' + i + ')">' +
-      '<img src="' + escapeHtml(p.image_url || "") + '" alt="' + escapeHtml(p.title || "") + '" style="aspect-ratio:' + (p.tall ? "3/4" : "4/3") + '">' +
+      '<img src="' + escapeHtml(cldOptimize(p.image_url, 700)) + '" alt="' + escapeHtml(p.title || "") + '" style="aspect-ratio:' + (p.tall ? "3/4" : "4/3") + '" loading="' + (i < 6 ? "eager" : "lazy") + '" decoding="async">' +
       '<div class="masonry-overlay"><p class="eyebrow">' + escapeHtml(p.category || "") + '</p><p class="title">' + escapeHtml(p.title || "") + '</p></div>' +
     '</button>'
   ).join("");
@@ -286,7 +286,7 @@ function renderVideosGrid() {
     '<button class="video-card reveal" style="transition-delay:' + ((i % 4) * 100) + 'ms" onclick="openLightbox(\'reel\',' + i + ')">' +
       '<div class="phone-frame">' +
         (v.poster_url
-          ? '<img src="' + escapeHtml(v.poster_url) + '" alt="' + escapeHtml(v.title || "") + '">'
+          ? '<img src="' + escapeHtml(cldOptimize(v.poster_url, 500)) + '" alt="' + escapeHtml(v.title || "") + '" loading="lazy" decoding="async">'
           : '<div class="no-poster">🎬</div>') +
         '<div class="phone-play-overlay"><div class="phone-play-btn">▶</div></div>' +
       '</div>' +
@@ -397,10 +397,10 @@ function openLightbox(kind, index) {
     title.textContent = p.title || "";
     if (p.description) { desc.textContent = p.description; desc.classList.remove("hidden"); } else { desc.classList.add("hidden"); }
     if (p.video_url) {
-      media.innerHTML = '<video src="' + escapeHtml(p.video_url) + '" controls autoplay playsinline></video>';
+      media.innerHTML = '<video src="' + escapeHtml(cldOptimize(p.video_url, 1600)) + '" controls autoplay playsinline></video>';
       novideo.classList.add("hidden");
     } else {
-      media.innerHTML = '<img src="' + escapeHtml(p.image_url || "") + '" alt="' + escapeHtml(p.title || "") + '">';
+      media.innerHTML = '<img src="' + escapeHtml(cldOptimize(p.image_url, 1600)) + '" alt="' + escapeHtml(p.title || "") + '">';
       novideo.classList.remove("hidden");
     }
   } else if (kind === "reel") {
@@ -410,10 +410,10 @@ function openLightbox(kind, index) {
     title.textContent = v.title || "";
     desc.classList.add("hidden");
     if (v.video_url) {
-      media.innerHTML = '<video src="' + escapeHtml(v.video_url) + '" controls autoplay playsinline></video>';
+      media.innerHTML = '<video src="' + escapeHtml(cldOptimize(v.video_url, 1600)) + '" controls autoplay playsinline></video>';
       novideo.classList.add("hidden");
     } else if (v.poster_url) {
-      media.innerHTML = '<img src="' + escapeHtml(v.poster_url) + '" alt="">';
+      media.innerHTML = '<img src="' + escapeHtml(cldOptimize(v.poster_url, 1600)) + '" alt="">';
       novideo.classList.remove("hidden");
     }
   }
@@ -493,4 +493,18 @@ function escapeHtml(str) {
   return String(str == null ? "" : str)
     .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+}
+
+/**
+ * Insère des paramètres de transformation Cloudinary (format automatique,
+ * qualité automatique, largeur plafonnée) dans une URL Cloudinary, pour ne
+ * jamais charger une image/vidéo plus lourde que nécessaire à l'affichage.
+ * Les URLs qui ne viennent pas de Cloudinary (lien externe collé à la main)
+ * sont retournées telles quelles, sans y toucher.
+ */
+function cldOptimize(url, width) {
+  if (!url || url.indexOf("res.cloudinary.com") === -1) return url;
+  if (url.indexOf("/upload/f_auto") !== -1) return url; // déjà optimisée
+  const params = "f_auto,q_auto,c_limit,w_" + (width || 1200);
+  return url.replace("/upload/", "/upload/" + params + "/");
 }
