@@ -412,6 +412,7 @@ function closeLightbox() {
   const media = document.getElementById("lightbox-media");
   if (!lb) return;
   lb.classList.add("hidden");
+  lb.classList.remove("admin-preview-open");
   if (media) media.innerHTML = ""; // stoppe la lecture vidéo
   document.body.style.overflow = "";
 }

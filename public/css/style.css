@@ -324,3 +324,6 @@
 .tag-pill[draggable="true"] { cursor: grab; }
 
 .badge { background: rgba(59,42,30,0.1); color: var(--chocolate); }
+
+/* Aperçu média ouvert depuis le dashboard : doit passer au-dessus du panneau admin */
+#lightbox.admin-preview-open { z-index: 100; }

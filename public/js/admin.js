@@ -2,6 +2,12 @@
    ADMIN — tableau de bord. Protégé par Supabase Auth ; toutes les
    modifications sont écrites immédiatement dans Supabase (persistant,
    partagé par tous les visiteurs) et confirmées avant d'afficher "Enregistré".
+
+   NOTE TECHNIQUE (v2) : tous les boutons dynamiques (modifier / supprimer /
+   utiliser / aperçu) utilisent maintenant des attributs data-action / data-id
+   + un écouteur d'événement délégué par liste, au lieu d'attributs onclick
+   générés à la volée. C'est ce qui corrige les boutons qui ne répondaient
+   plus (un mélange de guillemets dans le HTML généré cassait le onclick).
    ========================================================================== */
 
 let adminState = {
@@ -109,7 +115,7 @@ async function bootDashboard() {
   setAdminTab("general");
 }
 
-async function refreshAllAdminData(showSpinner) {
+async function refreshAllAdminData() {
   try {
     const [content, projects, videos, testimonials, collabs, media] = await Promise.all([
       DB.getAllSiteContent(), DB.Projects.list(), DB.Videos.list(),
@@ -126,6 +132,15 @@ async function refreshAllAdminData(showSpinner) {
     console.error(err);
     showAdminError("Impossible de charger les données du dashboard : " + err.message);
   }
+}
+
+/** Recharge uniquement une entité + son onglet (plus rapide qu'un refresh complet). */
+async function refreshEntity(name) {
+  if (name === "projects") { adminState.projects = await DB.Projects.list(); renderProjectsTab(); }
+  else if (name === "videos") { adminState.videos = await DB.Videos.list(); renderVideosTab(); }
+  else if (name === "testimonials") { adminState.testimonials = await DB.Testimonials.list(); renderTestimonialsTab(); }
+  else if (name === "collabs") { adminState.collabs = await DB.Collabs.list(); renderCollabsTab(); }
+  else if (name === "media") { adminState.media = await DB.listMedia(); renderMediaTab(); }
 }
 
 function renderAllAdminTabs() {
@@ -156,7 +171,7 @@ function setAdminTab(tab) {
 
 function setBusy(btn, busyLabel) {
   if (!btn) return () => {};
-  const original = btn.textContent;
+  const original = btn.dataset.originalLabel || btn.textContent;
   btn.disabled = true;
   btn.dataset.originalLabel = original;
   btn.textContent = busyLabel || "Enregistrement…";
@@ -186,7 +201,34 @@ function showAdminError(message) {
   el.textContent = message;
   el.classList.remove("hidden");
   clearTimeout(el._timer);
-  el._timer = setTimeout(() => el.classList.add("hidden"), 6000);
+  el._timer = setTimeout(() => el.classList.add("hidden"), 7000);
+}
+
+/* ------------------------------------------------------------------ */
+/* Aperçu plein écran (réutilise la lightbox publique)                  */
+/* ------------------------------------------------------------------ */
+
+function previewMedia(url, isVideo, title) {
+  if (!url) { showToast("Aucun fichier à prévisualiser pour cet élément.", true); return; }
+  const lb = document.getElementById("lightbox");
+  const media = document.getElementById("lightbox-media");
+  const category = document.getElementById("lightbox-category");
+  const titleEl = document.getElementById("lightbox-title");
+  const desc = document.getElementById("lightbox-desc");
+  const novideo = document.getElementById("lightbox-novideo");
+  if (!lb || !media) return;
+
+  category.textContent = "Aperçu (dashboard)";
+  titleEl.textContent = title || "";
+  desc.classList.add("hidden");
+  novideo.classList.add("hidden");
+  media.innerHTML = isVideo
+    ? '<video src="' + escapeHtml(url) + '" controls autoplay playsinline></video>'
+    : '<img src="' + escapeHtml(url) + '" alt="">';
+
+  lb.classList.remove("hidden");
+  lb.classList.add("admin-preview-open");
+  document.body.style.overflow = "hidden";
 }
 
 /* ======================================================================
@@ -264,12 +306,14 @@ function deleteStatBlock() {
     const el = document.getElementById("draft-" + k);
     if (el) el.value = "";
   });
+  showToast("Bloc vidé — cliquez sur « Enregistrer » pour confirmer.");
 }
 function deleteStat2Block() {
   ["stat2Headline", "stat2Body", "stat2Role"].forEach((k) => {
     const el = document.getElementById("draft-" + k);
     if (el) el.value = "";
   });
+  showToast("Bloc vidé — cliquez sur « Enregistrer » pour confirmer.");
 }
 
 /* ======================================================================
@@ -298,7 +342,7 @@ function renderMediaPicker(containerId, options) {
     (options.withVideo
       ? '<input class="admin-input" id="' + uid + '-video-url" placeholder="Coller un lien vidéo direct (mp4…)" value="' + escapeHtml(options.videoValue || "") + '" style="margin-top:0.5rem;">'
       : '') +
-    '<button type="button" class="picker-browse-link" onclick="openMediaPickerFromField(' + JSON.stringify(uid) + ',' + JSON.stringify(!!options.withVideo) + ')">Parcourir la médiathèque (' + adminState.media.length + ')</button>' +
+    '<button type="button" class="picker-browse-link" id="' + uid + '-browse">Parcourir la médiathèque (' + adminState.media.length + ')</button>' +
     '<div class="picker-preview" id="' + uid + '-preview"></div>';
 
   renderPickerPreview(uid, options.imageValue, options.videoValue);
@@ -316,6 +360,10 @@ function renderMediaPicker(containerId, options) {
       renderPickerPreview(uid, urlInput.value.trim(), videoUrlInput.value.trim());
     });
   }
+
+  document.getElementById(uid + "-browse").addEventListener("click", () => {
+    openMediaPickerFromField(uid, !!options.withVideo);
+  });
 
   wireDropzone(uid + "-dz", uid + "-input", async (files) => {
     const file = files[0];
@@ -375,15 +423,24 @@ function openMediaPickerFromField(pickerUid, withVideo) {
   showToast("Cliquez sur « Utiliser » sur un média pour le sélectionner.");
 }
 
-function useMediaInPendingTarget(mediaItem) {
+function useMediaInPendingTarget(mediaId) {
   const target = adminState.mediaPickTarget;
-  if (!target) { setAdminTab("projects"); return; }
+  const mediaItem = adminState.media.find((m) => m.id === mediaId);
+  if (!mediaItem) return;
+  if (!target) {
+    // Pas de picker en attente : on copie simplement l'URL dans le presse-papiers si possible.
+    showToast("Ouvrez d'abord « Parcourir la médiathèque » depuis un champ pour associer ce média.");
+    return;
+  }
   const isVideo = mediaItem.type === "video";
   let filledInput = null;
   if (isVideo && target.withVideo) {
     filledInput = document.getElementById(target.pickerUid + "-video-url");
-  } else {
+  } else if (!isVideo) {
     filledInput = document.getElementById(target.pickerUid + "-url");
+  } else {
+    showToast("Ce champ n'accepte pas de vidéo.", true);
+    return;
   }
   if (filledInput) {
     filledInput.value = mediaItem.url;
@@ -417,18 +474,37 @@ function renderProjectsTab() {
   document.getElementById("projects-count").textContent = adminState.projects.length + " projet" + (adminState.projects.length > 1 ? "s" : "");
   const list = document.getElementById("projects-list");
   list.innerHTML = adminState.projects.map((p) =>
-    '<div class="item-row" draggable="true" data-id="' + p.id + '">' +
+    '<div class="item-row" draggable="true" data-id="' + escapeHtml(p.id) + '">' +
       '<span class="drag-handle" title="Glisser pour réordonner">⠿</span>' +
-      '<img src="' + escapeHtml(p.image_url || "") + '" alt="">' +
-      '<div class="item-info"><p class="name">' + escapeHtml(p.title || "(Sans titre)") + '</p><p class="meta">' + escapeHtml(p.category || "") + '</p></div>' +
-      '<button class="row-action" onclick="editProject(' + JSON.stringify(p.id) + ')" aria-label="Modifier">✎</button>' +
-      '<button class="row-action" onclick="deleteProject(' + JSON.stringify(p.id) + ')" aria-label="Supprimer">🗑</button>' +
+      (p.image_url ? '<img class="item-row-thumb" src="' + escapeHtml(p.image_url) + '" alt="">' : '<div class="item-row-thumb no-poster">📷</div>') +
+      '<div class="item-info"><p class="name">' + escapeHtml(p.title || "(Sans titre)") + '</p><p class="meta">' + escapeHtml(p.category || "") +
+        (p.video_url ? ' <span class="badge">Vidéo</span>' : '') + '</p></div>' +
+      '<button class="row-action" data-action="preview" data-id="' + escapeHtml(p.id) + '" aria-label="Aperçu">👁</button>' +
+      '<button class="row-action" data-action="edit" data-id="' + escapeHtml(p.id) + '" aria-label="Modifier">✎</button>' +
+      '<button class="row-action" data-action="delete" data-id="' + escapeHtml(p.id) + '" aria-label="Supprimer">🗑</button>' +
     '</div>'
   ).join("");
+
+  list.addEventListener("click", handleProjectsListClick);
   makeDraggableList(list, async (orderedIds) => {
     try { await DB.Projects.reorder(orderedIds); adminState.projects = await DB.Projects.list(); showToast("Ordre mis à jour."); }
-    catch (err) { showAdminError(err.message); adminState.projects = await DB.Projects.list(); renderProjectsTab(); }
+    catch (err) { showAdminError(err.message); await refreshEntity("projects"); }
   });
+}
+
+function handleProjectsListClick(e) {
+  const btn = e.target.closest("[data-action]");
+  if (!btn) return;
+  const id = btn.dataset.id;
+  const action = btn.dataset.action;
+  if (action === "edit") editProject(id);
+  else if (action === "delete") deleteProject(id);
+  else if (action === "preview") {
+    const p = adminState.projects.find((x) => x.id === id);
+    if (!p) return;
+    if (p.video_url) previewMedia(p.video_url, true, p.title);
+    else previewMedia(p.image_url, false, p.title);
+  }
 }
 
 function bindProjectFormOnce() {
@@ -464,9 +540,8 @@ async function handleProjectSubmit(e) {
       fields.sort_order = adminState.projects.length;
       await DB.Projects.create(fields);
     }
-    adminState.projects = await DB.Projects.list();
+    await refreshEntity("projects");
     resetProjectForm();
-    renderProjectsTab();
     done("✓ Fait");
     showToast("Projet enregistré.");
   } catch (err) {
@@ -512,14 +587,15 @@ function resetProjectForm() {
   document.getElementById("project-form-title").textContent = "Ajouter un projet";
   document.getElementById("project-submit-btn").textContent = "＋ Ajouter";
   document.getElementById("project-cancel-btn").classList.add("hidden");
+  document.getElementById("project-form-error").classList.add("hidden");
 }
 
 async function deleteProject(id) {
   if (!confirm("Supprimer ce projet du portfolio ? Cette action est définitive.")) return;
   try {
     await DB.Projects.remove(id);
-    adminState.projects = await DB.Projects.list();
-    renderProjectsTab();
+    await refreshEntity("projects");
+    if (adminState.editingProjectId === id) resetProjectForm();
     showToast("Projet supprimé.");
   } catch (err) {
     showAdminError(err.message);
@@ -541,18 +617,39 @@ function renderMediaTab() {
   } else {
     empty.classList.add("hidden");
     grid.innerHTML = adminState.media.map((m) =>
-      '<div class="media-thumb" draggable="true" data-id="' + m.id + '">' +
+      '<div class="media-thumb" draggable="true" data-id="' + escapeHtml(m.id) + '">' +
         (m.type === "video"
           ? '<video src="' + escapeHtml(m.url) + '" muted></video>'
           : '<img src="' + escapeHtml(m.url) + '" alt="' + escapeHtml(m.filename || "") + '">') +
-        '<div class="media-overlay"><button class="use-btn" onclick=\'useMediaInPendingTarget(' + JSON.stringify(m).replace(/'/g, "&#39;") + ')\'>Utiliser</button></div>' +
-        '<button class="del-btn" onclick="deleteMediaItem(' + JSON.stringify(m.id) + ')" aria-label="Supprimer"><span style="color:white; font-size:11px;">🗑</span></button>' +
+        '<div class="media-overlay">' +
+          '<button class="use-btn" data-action="use" data-id="' + escapeHtml(m.id) + '">Utiliser</button>' +
+        '</div>' +
+        '<button class="del-btn" data-action="delete" data-id="' + escapeHtml(m.id) + '" aria-label="Supprimer"><span style="color:white; font-size:11px;">🗑</span></button>' +
       '</div>'
     ).join("");
+
+    grid.addEventListener("click", handleMediaGridClick);
     makeDraggableList(grid, async (orderedIds) => {
       try { await DB.reorderMedia(orderedIds); adminState.media = await DB.listMedia(); }
-      catch (err) { showAdminError(err.message); adminState.media = await DB.listMedia(); renderMediaTab(); }
+      catch (err) { showAdminError(err.message); await refreshEntity("media"); }
     });
+  }
+}
+
+function handleMediaGridClick(e) {
+  const btn = e.target.closest("[data-action]");
+  if (btn) {
+    const id = btn.dataset.id;
+    const action = btn.dataset.action;
+    if (action === "use") useMediaInPendingTarget(id);
+    else if (action === "delete") deleteMediaItem(id);
+    return;
+  }
+  // clic sur la vignette elle-même (hors boutons) → aperçu
+  const thumb = e.target.closest(".media-thumb");
+  if (thumb) {
+    const m = adminState.media.find((x) => x.id === thumb.dataset.id);
+    if (m) previewMedia(m.url, m.type === "video", m.filename);
   }
 }
 
@@ -572,8 +669,7 @@ async function handleMediaUpload(files) {
       errors.push(err.message);
     }
   }
-  adminState.media = await DB.listMedia();
-  renderMediaTab();
+  await refreshEntity("media");
   uploadingEl.classList.add("hidden");
   if (errors.length) showAdminError(errors.join(" "));
   else showToast(files.length > 1 ? "Fichiers importés." : "Fichier importé.");
@@ -583,8 +679,7 @@ async function deleteMediaItem(id) {
   if (!confirm("Supprimer ce média de la médiathèque ? (Le fichier restera sur Cloudinary mais ne sera plus proposé ici.)")) return;
   try {
     await DB.deleteMedia(id);
-    adminState.media = await DB.listMedia();
-    renderMediaTab();
+    await refreshEntity("media");
     showToast("Média supprimé de la médiathèque.");
   } catch (err) {
     showAdminError(err.message);
@@ -609,47 +704,88 @@ function renderVideosTab() {
 
   const list = document.getElementById("videos-list");
   list.innerHTML = adminState.videos.map((v) =>
-    '<div class="item-row" draggable="true" data-id="' + v.id + '">' +
+    '<div class="item-row" draggable="true" data-id="' + escapeHtml(v.id) + '">' +
       '<span class="drag-handle" title="Glisser pour réordonner">⠿</span>' +
-      (v.poster_url ? '<img class="item-row-thumb" src="' + escapeHtml(v.poster_url) + '" alt="">' : '<div class="item-row-thumb no-poster">🎬</div>') +
+      (v.poster_url
+        ? '<img class="item-row-thumb" src="' + escapeHtml(v.poster_url) + '" alt="">'
+        : (v.video_url
+            ? '<video class="item-row-thumb" src="' + escapeHtml(v.video_url) + '" muted></video>'
+            : '<div class="item-row-thumb no-poster">🎬</div>')) +
       '<div class="item-info"><p class="name">' + escapeHtml(v.title || "(Sans titre)") + '</p>' +
         '<span class="badge">' + (v.video_url ? "Vidéo enregistrée" : "Aucune vidéo") + '</span></div>' +
-      '<button class="row-action" onclick="editVideoItem(' + JSON.stringify(v.id) + ')" aria-label="Modifier">✎</button>' +
-      '<button class="row-action" onclick="deleteVideoItem(' + JSON.stringify(v.id) + ')" aria-label="Supprimer">🗑</button>' +
+      '<button class="row-action" data-action="preview" data-id="' + escapeHtml(v.id) + '" aria-label="Aperçu">👁</button>' +
+      '<button class="row-action" data-action="edit" data-id="' + escapeHtml(v.id) + '" aria-label="Modifier">✎</button>' +
+      '<button class="row-action" data-action="delete" data-id="' + escapeHtml(v.id) + '" aria-label="Supprimer">🗑</button>' +
     '</div>'
   ).join("");
+
+  list.addEventListener("click", handleVideosListClick);
   makeDraggableList(list, async (orderedIds) => {
     try { await DB.Videos.reorder(orderedIds); adminState.videos = await DB.Videos.list(); showToast("Ordre mis à jour."); }
-    catch (err) { showAdminError(err.message); adminState.videos = await DB.Videos.list(); renderVideosTab(); }
+    catch (err) { showAdminError(err.message); await refreshEntity("videos"); }
   });
+}
+
+function handleVideosListClick(e) {
+  const btn = e.target.closest("[data-action]");
+  if (!btn) return;
+  const id = btn.dataset.id;
+  const action = btn.dataset.action;
+  if (action === "edit") editVideoItem(id);
+  else if (action === "delete") deleteVideoItem(id);
+  else if (action === "preview") {
+    const v = adminState.videos.find((x) => x.id === id);
+    if (!v) return;
+    if (v.video_url) previewMedia(v.video_url, true, v.title);
+    else if (v.poster_url) previewMedia(v.poster_url, false, v.title);
+    else showToast("Aucun fichier à prévisualiser pour cette vidéo.", true);
+  }
 }
 
 function renderVideoFilePicker() {
   const container = document.getElementById("video-file-picker");
   container.innerHTML =
     '<div class="dropzone compact" id="videoFileDz"><div>🎬</div><p>Glissez un fichier vidéo ici, ou cliquez</p><input type="file" accept="video/*" id="videoFileInput"></div>' +
-    '<p class="picker-progress hidden" id="videoFileProgress"><div class="picker-progress-fill" style="width:0%"></div></p>' +
+    '<div class="picker-progress hidden" id="videoFileProgress"><div class="picker-progress-fill" style="width:0%"></div></div>' +
     '<p class="picker-or">— ou —</p>' +
-    '<input class="admin-input" id="videoFileUrlInput" placeholder="Coller un lien vidéo direct (mp4, Vimeo…)" value="' + escapeHtml(videoDraftVideoUrl) + '">';
-  document.getElementById("videoFileUrlInput").addEventListener("input", (e) => { videoDraftVideoUrl = e.target.value.trim(); });
+    '<input class="admin-input" id="videoFileUrlInput" placeholder="Coller un lien vidéo direct (mp4, Vimeo…)" value="' + escapeHtml(videoDraftVideoUrl) + '">' +
+    '<div class="picker-preview" id="videoFilePreview"></div>';
+
+  renderVideoFilePreview();
+
+  document.getElementById("videoFileUrlInput").addEventListener("input", (e) => {
+    videoDraftVideoUrl = e.target.value.trim();
+    renderVideoFilePreview();
+  });
   wireDropzone("videoFileDz", "videoFileInput", async (files) => {
     const file = files[0];
     if (!file) return;
-    const progress = document.getElementById("videoFileProgress");
-    progress.classList.remove("hidden");
+    const progressWrap = document.getElementById("videoFileProgress");
+    const progressFill = progressWrap.querySelector(".picker-progress-fill");
+    progressWrap.classList.remove("hidden");
     try {
-      const result = await uploadToCloudinary(file, (pct) => { progress.querySelector(".picker-progress-fill").style.width = pct + "%"; });
+      const result = await uploadToCloudinary(file, (pct) => { progressFill.style.width = pct + "%"; });
       await DB.addMediaFromUpload(result, file.name);
       adminState.media = await DB.listMedia();
       videoDraftVideoUrl = result.url;
       document.getElementById("videoFileUrlInput").value = result.url;
+      renderVideoFilePreview();
       showToast("Vidéo importée.");
     } catch (err) {
       showAdminError(err.message);
     } finally {
-      progress.classList.add("hidden");
+      progressWrap.classList.add("hidden");
+      progressFill.style.width = "0%";
     }
   });
+}
+
+function renderVideoFilePreview() {
+  const el = document.getElementById("videoFilePreview");
+  if (!el) return;
+  el.innerHTML = videoDraftVideoUrl
+    ? '<video src="' + escapeHtml(videoDraftVideoUrl) + '" muted loop autoplay playsinline></video>'
+    : "";
 }
 
 function bindVideoFormOnce() {
@@ -666,6 +802,12 @@ async function handleVideoSubmit(e) {
   const errEl = document.getElementById("video-form-error");
   errEl.classList.add("hidden");
 
+  if (!videoDraftVideoUrl && !videoDraftPosterUrl) {
+    errEl.textContent = "Ajoutez au moins une vidéo ou une image de couverture.";
+    errEl.classList.remove("hidden");
+    return;
+  }
+
   const btn = document.getElementById("video-submit-btn");
   const done = setBusy(btn, adminState.editingVideoId ? "Modification…" : "Ajout…");
   try {
@@ -676,9 +818,8 @@ async function handleVideoSubmit(e) {
       fields.sort_order = adminState.videos.length;
       await DB.Videos.create(fields);
     }
-    adminState.videos = await DB.Videos.list();
+    await refreshEntity("videos");
     resetVideoForm();
-    renderVideosTab();
     done("✓ Fait");
     showToast("Vidéo enregistrée.");
   } catch (err) {
@@ -700,6 +841,7 @@ function editVideoItem(id) {
   document.getElementById("video-form-title").textContent = "Modifier la vidéo";
   document.getElementById("video-submit-btn").textContent = "Modifier";
   document.getElementById("video-cancel-btn").classList.remove("hidden");
+  document.getElementById("video-title-input").scrollIntoView({ behavior: "smooth", block: "center" });
 }
 
 function resetVideoForm() {
@@ -710,14 +852,15 @@ function resetVideoForm() {
   document.getElementById("video-form-title").textContent = "Ajouter une vidéo";
   document.getElementById("video-submit-btn").textContent = "＋ Ajouter";
   document.getElementById("video-cancel-btn").classList.add("hidden");
+  document.getElementById("video-form-error").classList.add("hidden");
 }
 
 async function deleteVideoItem(id) {
   if (!confirm("Supprimer cette vidéo ? Cette action est définitive.")) return;
   try {
     await DB.Videos.remove(id);
-    adminState.videos = await DB.Videos.list();
-    renderVideosTab();
+    await refreshEntity("videos");
+    if (adminState.editingVideoId === id) resetVideoForm();
     showToast("Vidéo supprimée.");
   } catch (err) {
     showAdminError(err.message);
@@ -740,18 +883,29 @@ function renderTestimonialsTab() {
   document.getElementById("testimonials-count").textContent = adminState.testimonials.length + " témoignage" + (adminState.testimonials.length > 1 ? "s" : "");
   const list = document.getElementById("testimonials-list");
   list.innerHTML = adminState.testimonials.map((t) =>
-    '<div class="item-row" style="align-items:flex-start;" draggable="true" data-id="' + t.id + '">' +
+    '<div class="item-row" style="align-items:flex-start;" draggable="true" data-id="' + escapeHtml(t.id) + '">' +
       '<span class="drag-handle" title="Glisser pour réordonner">⠿</span>' +
       '<div class="item-info"><p style="font-size:0.78rem; font-style:italic; opacity:0.8; margin:0;">« ' + escapeHtml(t.quote) + ' »</p>' +
         '<p class="meta" style="margin-top:4px;">' + escapeHtml([t.name, t.org].filter(Boolean).join(" — ")) + '</p></div>' +
-      '<button class="row-action" onclick="editTestimonialItem(' + JSON.stringify(t.id) + ')" aria-label="Modifier">✎</button>' +
-      '<button class="row-action" onclick="deleteTestimonialItem(' + JSON.stringify(t.id) + ')" aria-label="Supprimer">🗑</button>' +
+      '<button class="row-action" data-action="edit" data-id="' + escapeHtml(t.id) + '" aria-label="Modifier">✎</button>' +
+      '<button class="row-action" data-action="delete" data-id="' + escapeHtml(t.id) + '" aria-label="Supprimer">🗑</button>' +
     '</div>'
   ).join("");
+
+  list.addEventListener("click", handleTestimonialsListClick);
   makeDraggableList(list, async (orderedIds) => {
     try { await DB.Testimonials.reorder(orderedIds); adminState.testimonials = await DB.Testimonials.list(); showToast("Ordre mis à jour."); }
-    catch (err) { showAdminError(err.message); adminState.testimonials = await DB.Testimonials.list(); renderTestimonialsTab(); }
+    catch (err) { showAdminError(err.message); await refreshEntity("testimonials"); }
   });
+}
+
+function handleTestimonialsListClick(e) {
+  const btn = e.target.closest("[data-action]");
+  if (!btn) return;
+  const id = btn.dataset.id;
+  const action = btn.dataset.action;
+  if (action === "edit") editTestimonialItem(id);
+  else if (action === "delete") deleteTestimonialItem(id);
 }
 
 async function handleTestimonialSubmit(e) {
@@ -773,9 +927,8 @@ async function handleTestimonialSubmit(e) {
       fields.sort_order = adminState.testimonials.length;
       await DB.Testimonials.create(fields);
     }
-    adminState.testimonials = await DB.Testimonials.list();
+    await refreshEntity("testimonials");
     resetTestimonialForm();
-    renderTestimonialsTab();
     done("✓ Fait");
     showToast("Témoignage enregistré.");
   } catch (err) {
@@ -796,6 +949,7 @@ function editTestimonialItem(id) {
   document.getElementById("testimonial-form-title").textContent = "Modifier le témoignage";
   document.getElementById("testimonial-submit-btn").textContent = "Modifier";
   document.getElementById("testimonial-cancel-btn").classList.remove("hidden");
+  document.getElementById("testimonial-quote-input").scrollIntoView({ behavior: "smooth", block: "center" });
 }
 
 function resetTestimonialForm() {
@@ -806,14 +960,15 @@ function resetTestimonialForm() {
   document.getElementById("testimonial-form-title").textContent = "Ajouter un témoignage";
   document.getElementById("testimonial-submit-btn").textContent = "＋ Ajouter";
   document.getElementById("testimonial-cancel-btn").classList.add("hidden");
+  document.getElementById("testimonial-form-error").classList.add("hidden");
 }
 
 async function deleteTestimonialItem(id) {
   if (!confirm("Supprimer ce témoignage ?")) return;
   try {
     await DB.Testimonials.remove(id);
-    adminState.testimonials = await DB.Testimonials.list();
-    renderTestimonialsTab();
+    await refreshEntity("testimonials");
+    if (adminState.editingTestimonialId === id) resetTestimonialForm();
     showToast("Témoignage supprimé.");
   } catch (err) {
     showAdminError(err.message);
@@ -842,14 +997,22 @@ function renderCollabsTab() {
   } else {
     empty.classList.add("hidden");
     wrap.innerHTML = adminState.collabs.map((c) =>
-      '<span class="tag-pill" draggable="true" data-id="' + c.id + '">' + escapeHtml(c.name) +
-      '<button onclick="removeCollabItem(' + JSON.stringify(c.id) + ')" aria-label="Retirer ' + escapeHtml(c.name) + '">✕</button></span>'
+      '<span class="tag-pill" draggable="true" data-id="' + escapeHtml(c.id) + '">' + escapeHtml(c.name) +
+      '<button type="button" data-action="remove" data-id="' + escapeHtml(c.id) + '" aria-label="Retirer ' + escapeHtml(c.name) + '">✕</button></span>'
     ).join("");
+
+    wrap.addEventListener("click", handleCollabsTagsClick);
     makeDraggableList(wrap, async (orderedIds) => {
       try { await DB.Collabs.reorder(orderedIds); adminState.collabs = await DB.Collabs.list(); }
-      catch (err) { showAdminError(err.message); adminState.collabs = await DB.Collabs.list(); renderCollabsTab(); }
+      catch (err) { showAdminError(err.message); await refreshEntity("collabs"); }
     }, { inline: true });
   }
+}
+
+function handleCollabsTagsClick(e) {
+  const btn = e.target.closest("[data-action='remove']");
+  if (!btn) return;
+  removeCollabItem(btn.dataset.id);
 }
 
 async function handleCollabSubmit(e) {
@@ -859,9 +1022,8 @@ async function handleCollabSubmit(e) {
   if (!name) return;
   try {
     await DB.Collabs.create({ name, sort_order: adminState.collabs.length });
-    adminState.collabs = await DB.Collabs.list();
+    await refreshEntity("collabs");
     input.value = "";
-    renderCollabsTab();
     showToast("Collaboration ajoutée.");
   } catch (err) {
     showAdminError(err.message);
@@ -871,8 +1033,7 @@ async function handleCollabSubmit(e) {
 async function removeCollabItem(id) {
   try {
     await DB.Collabs.remove(id);
-    adminState.collabs = await DB.Collabs.list();
-    renderCollabsTab();
+    await refreshEntity("collabs");
     showToast("Collaboration retirée.");
   } catch (err) {
     showAdminError(err.message);
@@ -880,12 +1041,13 @@ async function removeCollabItem(id) {
 }
 
 async function handleToggleCollabsEnabled(e) {
+  const checked = e.target.checked;
   try {
-    await DB.saveSiteContent({ collabsEnabled: e.target.checked ? "true" : "false" });
-    adminState.content.collabsEnabled = e.target.checked ? "true" : "false";
+    await DB.saveSiteContent({ collabsEnabled: checked ? "true" : "false" });
+    adminState.content.collabsEnabled = checked ? "true" : "false";
     showToast("Préférence enregistrée.");
   } catch (err) {
-    e.target.checked = !e.target.checked;
+    e.target.checked = !checked;
     showAdminError(err.message);
   }
 }
