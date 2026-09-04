@@ -444,17 +444,42 @@ async function handleContactSubmit(e) {
   const submitBtn = form.querySelector("button[type=submit]");
   const originalLabel = submitBtn ? submitBtn.textContent : "";
 
+  const payload = {
+    name: nameEl.value.trim(),
+    email: emailEl.value.trim(),
+    company: companyEl.value.trim(),
+    message: messageEl.value.trim(),
+  };
+
   if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = "Envoi…"; }
   try {
-    await DB.sendContactMessage({
-      name: nameEl.value.trim(),
-      email: emailEl.value.trim(),
-      company: companyEl.value.trim(),
-      message: messageEl.value.trim(),
-    });
+    // 1. Sauvegarde permanente en base (toujours consultable depuis Supabase).
+    await DB.sendContactMessage(payload);
+
+    // 2. Notification par email (best-effort : si l'envoi d'email échoue,
+    //    le message reste bien enregistré en base, on ne bloque pas la
+    //    personne qui vient d'écrire — l'erreur est seulement journalisée).
+    try {
+      await fetch("/api/send-contact-email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+    } catch (emailErr) {
+      console.warn("Notification email non envoyée :", emailErr);
+    }
+
     form.reset();
     form.classList.add("hidden");
-    document.getElementById("contact-success").classList.remove("hidden");
+    const successEl = document.getElementById("contact-success");
+    successEl.classList.remove("hidden");
+
+    // Revient au formulaire vide après 1 minute, pour permettre un nouvel envoi.
+    clearTimeout(window._contactSuccessTimer);
+    window._contactSuccessTimer = setTimeout(() => {
+      successEl.classList.add("hidden");
+      form.classList.remove("hidden");
+    }, 60000);
   } catch (err) {
     console.error(err);
     alert("Le message n'a pas pu être envoyé. Merci de réessayer dans un instant.");
