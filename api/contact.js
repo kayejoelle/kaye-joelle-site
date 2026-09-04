@@ -40,8 +40,12 @@ const RATE_LIMIT_WINDOW_MINUTES = 10;
 
 function getClientIp(req) {
   const fwd = req.headers["x-forwarded-for"];
-  if (fwd) return String(fwd).split(",")[0].trim();
-  return (req.socket && req.socket.remoteAddress) || "unknown";
+  const raw = fwd ? String(fwd).split(",")[0].trim() : ((req.socket && req.socket.remoteAddress) || "");
+  // N'accepte que des formats IPv4 / IPv6 plausibles ; sinon, valeur neutre.
+  // Empêche qu'un en-tête falsifié ou malformé n'atteigne la requête Supabase.
+  const isIPv4 = /^\d{1,3}(\.\d{1,3}){3}$/.test(raw);
+  const isIPv6ish = /^[0-9a-fA-F:]+$/.test(raw) && raw.indexOf(":") !== -1;
+  return (isIPv4 || isIPv6ish) ? raw : "unknown";
 }
 
 /** Retire toute balise HTML/script et les caractères de contrôle dangereux. */
@@ -59,9 +63,11 @@ function sanitizeText(input, maxLength) {
 }
 
 function isValidEmail(email) {
-  // Volontairement simple et strict : suffisant pour rejeter les formats invalides
-  // sans faux positifs excessifs sur des adresses légitimes.
-  return /^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]{2,}$/.test(email) && email.length <= 254;
+  // Strict à dessein : exclut notamment ( ) , qui ont un sens spécial dans la
+  // syntaxe de filtrage Supabase/PostgREST utilisée plus bas pour la
+  // vérification anti-spam — les autoriser ouvrirait la porte à une
+  // injection dans ce filtre (contournement de la limite de fréquence).
+  return /^[^\s@<>(),;]+@[^\s@<>(),;]+\.[^\s@<>(),;]{2,}$/.test(email) && email.length <= 254;
 }
 
 function escapeHtmlForEmail(str) {
@@ -70,9 +76,38 @@ function escapeHtmlForEmail(str) {
     .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 }
 
+/**
+ * Vérifie que la requête provient bien de ce site (défense en profondeur
+ * contre l'appel direct de cette API depuis un autre site — une page tierce
+ * qui soumettrait ce formulaire caché, par exemple). Ce n'est volontairement
+ * PAS le seul rempart (un outil en ligne de commande peut falsifier ces
+ * en-têtes) : le honeypot et la limite de fréquence restent la protection
+ * principale contre l'abus. On n'échoue donc pas de façon stricte si l'en-tête
+ * est absent ou illisible, pour ne pas bloquer des usages légitimes.
+ */
+function isAllowedOrigin(req) {
+  const origin = req.headers.origin || req.headers.referer || "";
+  if (!origin) return true;
+  try {
+    const host = new URL(origin).host;
+    if (host.endsWith(".vercel.app")) return true;
+    if (host === "localhost:3000" || host.indexOf("localhost:") === 0) return true;
+    const allowed = process.env.ALLOWED_ORIGIN_HOST;
+    if (allowed && host === allowed) return true;
+    return false;
+  } catch (e) {
+    return true;
+  }
+}
+
 module.exports = async function handler(req, res) {
   if (req.method !== "POST") {
     res.status(405).json({ error: "Méthode non autorisée." });
+    return;
+  }
+
+  if (!isAllowedOrigin(req)) {
+    res.status(403).json({ error: "Origine non autorisée." });
     return;
   }
 

@@ -14,11 +14,36 @@
      CLOUDINARY_API_SECRET         (Cloudinary → Settings → API Keys — SECRET,
                                      à ne jamais mettre ailleurs que dans les
                                      variables d'environnement du serveur)
+     ADMIN_EMAILS                   (NOUVELLE — liste d'emails autorisés à
+                                     supprimer des fichiers, séparés par des
+                                     virgules, ex. "kayejoelle.pro@gmail.com".
+                                     Sans cette variable, TOUT compte Supabase
+                                     authentifié serait accepté — voir ci-dessous.)
    ========================================================================== */
+
+function isAllowedOrigin(req) {
+  const origin = req.headers.origin || req.headers.referer || "";
+  if (!origin) return true;
+  try {
+    const host = new URL(origin).host;
+    if (host.endsWith(".vercel.app")) return true;
+    if (host === "localhost:3000" || host.indexOf("localhost:") === 0) return true;
+    const allowed = process.env.ALLOWED_ORIGIN_HOST;
+    if (allowed && host === allowed) return true;
+    return false;
+  } catch (e) {
+    return true;
+  }
+}
 
 module.exports = async function handler(req, res) {
   if (req.method !== "POST") {
     res.status(405).json({ error: "Méthode non autorisée." });
+    return;
+  }
+
+  if (!isAllowedOrigin(req)) {
+    res.status(403).json({ error: "Origine non autorisée." });
     return;
   }
 
@@ -27,6 +52,11 @@ module.exports = async function handler(req, res) {
   const CLOUDINARY_CLOUD_NAME = process.env.CLOUDINARY_CLOUD_NAME;
   const CLOUDINARY_API_KEY = process.env.CLOUDINARY_API_KEY;
   const CLOUDINARY_API_SECRET = process.env.CLOUDINARY_API_SECRET;
+  // Liste blanche des comptes autorisés à supprimer des fichiers. Sans cette
+  // variable, on refuse tout par défaut (fail-closed) plutôt que d'accepter
+  // n'importe quel compte Supabase authentifié (voir rapport de sécurité).
+  const ADMIN_EMAILS = (process.env.ADMIN_EMAILS || "")
+    .split(",").map((e) => e.trim().toLowerCase()).filter(Boolean);
 
   if (!SUPABASE_URL || !SUPABASE_ANON_KEY || !CLOUDINARY_CLOUD_NAME || !CLOUDINARY_API_KEY || !CLOUDINARY_API_SECRET) {
     res.status(500).json({
@@ -35,9 +65,15 @@ module.exports = async function handler(req, res) {
     });
     return;
   }
+  if (!ADMIN_EMAILS.length) {
+    res.status(500).json({ error: "Configuration serveur incomplète : variable ADMIN_EMAILS manquante." });
+    return;
+  }
 
   try {
-    // 1. Vérifie que la requête vient bien d'une personne connectée au dashboard.
+    // 1. Vérifie que la requête vient bien d'une personne connectée au dashboard
+    //    ET que ce compte fait partie des administrateurs autorisés (pas
+    //    n'importe quel compte Supabase authentifié).
     const authHeader = req.headers["authorization"] || "";
     const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : null;
     if (!token) {
@@ -50,6 +86,12 @@ module.exports = async function handler(req, res) {
     });
     if (!userRes.ok) {
       res.status(401).json({ error: "Session invalide ou expirée." });
+      return;
+    }
+    const userData = await userRes.json().catch(() => ({}));
+    const userEmail = (userData && userData.email || "").toLowerCase();
+    if (!userEmail || ADMIN_EMAILS.indexOf(userEmail) === -1) {
+      res.status(403).json({ error: "Compte non autorisé pour cette action." });
       return;
     }
 
@@ -80,7 +122,8 @@ module.exports = async function handler(req, res) {
     const destroyData = await destroyRes.json().catch(() => ({}));
 
     if (!destroyRes.ok) {
-      res.status(502).json({ error: "Cloudinary a refusé la suppression.", details: destroyData });
+      console.error("Cloudinary delete failed:", destroyData);
+      res.status(502).json({ error: "Cloudinary a refusé la suppression." });
       return;
     }
 

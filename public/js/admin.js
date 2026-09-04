@@ -233,7 +233,7 @@ async function cleanupCloudinaryAssets(items) {
 /* ------------------------------------------------------------------ */
 
 function previewMedia(url, isVideo, title) {
-  if (!url) { showToast("Aucun fichier à prévisualiser pour cet élément.", true); return; }
+  if (!url || !isSafeMediaUrl(url)) { showToast("Aucun fichier à prévisualiser pour cet élément.", true); return; }
   const lb = document.getElementById("lightbox");
   const media = document.getElementById("lightbox-media");
   const category = document.getElementById("lightbox-category");
@@ -247,8 +247,8 @@ function previewMedia(url, isVideo, title) {
   desc.classList.add("hidden");
   novideo.classList.add("hidden");
   media.innerHTML = isVideo
-    ? '<video src="' + escapeHtml(url) + '" controls autoplay playsinline></video>'
-    : '<img src="' + escapeHtml(url) + '" alt="">';
+    ? '<video src="' + escapeHtml(cldOptimize(url, 1200)) + '" controls autoplay playsinline></video>'
+    : '<img src="' + escapeHtml(cldOptimize(url, 1200)) + '" alt="">';
 
   lb.classList.remove("hidden");
   lb.classList.add("admin-preview-open");
@@ -476,8 +476,8 @@ function renderMediaPicker(containerId, options) {
 function renderPickerPreview(uid, imageUrl, videoUrl) {
   const el = document.getElementById(uid + "-preview");
   if (!el) return;
-  if (videoUrl) el.innerHTML = '<video src="' + escapeHtml(videoUrl) + '" muted loop autoplay playsinline></video>';
-  else if (imageUrl) el.innerHTML = '<img src="' + escapeHtml(imageUrl) + '" alt="">';
+  if (videoUrl && isSafeMediaUrl(videoUrl)) el.innerHTML = '<video src="' + escapeHtml(cldOptimize(videoUrl, 800)) + '" muted loop autoplay playsinline></video>';
+  else if (imageUrl && isSafeMediaUrl(imageUrl)) el.innerHTML = '<img src="' + escapeHtml(cldOptimize(imageUrl, 800)) + '" alt="">';
   else el.innerHTML = "";
 }
 
@@ -565,7 +565,7 @@ function renderProjectsTab() {
   list.innerHTML = adminState.projects.map((p) =>
     '<div class="item-row" draggable="true" data-id="' + escapeHtml(p.id) + '">' +
       '<span class="drag-handle" title="Glisser pour réordonner">⠿</span>' +
-      (p.image_url ? '<img class="item-row-thumb" src="' + escapeHtml(p.image_url) + '" alt="">' : '<div class="item-row-thumb no-poster">📷</div>') +
+      (isSafeMediaUrl(p.image_url) ? '<img class="item-row-thumb" src="' + escapeHtml(cldOptimize(p.image_url, 200)) + '" alt="">' : '<div class="item-row-thumb no-poster">📷</div>') +
       '<div class="item-info"><p class="name">' + escapeHtml(p.title || "(Sans titre)") + '</p><p class="meta">' + escapeHtml(p.category || "") +
         (p.video_url ? ' <span class="badge">Vidéo</span>' : '') + '</p></div>' +
       '<button class="row-action" data-action="preview" data-id="' + escapeHtml(p.id) + '" aria-label="Aperçu">👁</button>' +
@@ -744,8 +744,8 @@ function renderMediaTab() {
     grid.innerHTML = adminState.media.map((m) =>
       '<div class="media-thumb" draggable="true" data-id="' + escapeHtml(m.id) + '">' +
         (m.type === "video"
-          ? '<video src="' + escapeHtml(m.url) + '" muted></video>'
-          : '<img src="' + escapeHtml(m.url) + '" alt="' + escapeHtml(m.filename || "") + '">') +
+          ? '<video src="' + escapeHtml(cldOptimize(m.url, 300)) + '" muted></video>'
+          : '<img src="' + escapeHtml(cldOptimize(m.url, 300)) + '" alt="' + escapeHtml(m.filename || "") + '">') +
         '<div class="media-overlay">' +
           '<button class="use-btn" data-action="use" data-id="' + escapeHtml(m.id) + '">Utiliser</button>' +
         '</div>' +
@@ -835,10 +835,10 @@ function renderVideosTab() {
   list.innerHTML = adminState.videos.map((v) =>
     '<div class="item-row" draggable="true" data-id="' + escapeHtml(v.id) + '">' +
       '<span class="drag-handle" title="Glisser pour réordonner">⠿</span>' +
-      (v.poster_url
-        ? '<img class="item-row-thumb" src="' + escapeHtml(v.poster_url) + '" alt="">'
-        : (v.video_url
-            ? '<video class="item-row-thumb" src="' + escapeHtml(v.video_url) + '" muted></video>'
+      (isSafeMediaUrl(v.poster_url)
+        ? '<img class="item-row-thumb" src="' + escapeHtml(cldOptimize(v.poster_url, 200)) + '" alt="">'
+        : (isSafeMediaUrl(v.video_url)
+            ? '<video class="item-row-thumb" src="' + escapeHtml(cldOptimize(v.video_url, 200)) + '" muted></video>'
             : '<div class="item-row-thumb no-poster">🎬</div>')) +
       '<div class="item-info"><p class="name">' + escapeHtml(v.title || "(Sans titre)") + '</p>' +
         '<span class="badge">' + (v.video_url ? "Vidéo enregistrée" : "Aucune vidéo") + '</span></div>' +
@@ -914,8 +914,8 @@ function renderVideoFilePicker() {
 function renderVideoFilePreview() {
   const el = document.getElementById("videoFilePreview");
   if (!el) return;
-  el.innerHTML = videoDraft.videoUrl
-    ? '<video src="' + escapeHtml(videoDraft.videoUrl) + '" muted loop autoplay playsinline></video>'
+  el.innerHTML = (videoDraft.videoUrl && isSafeMediaUrl(videoDraft.videoUrl))
+    ? '<video src="' + escapeHtml(cldOptimize(videoDraft.videoUrl, 800)) + '" muted loop autoplay playsinline></video>'
     : "";
 }
 

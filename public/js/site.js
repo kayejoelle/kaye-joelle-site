@@ -251,8 +251,11 @@ function renderPortfolioFilters() {
   if (!row) return;
   const cats = ["Tous"].concat(portfolioCategories());
   row.innerHTML = cats.map((cat) =>
-    '<button class="pill' + (siteState.activeCategory === cat ? " active" : "") + '" onclick="setActiveCategory(' + JSON.stringify(cat) + ')">' + escapeHtml(cat) + '</button>'
+    '<button class="pill' + (siteState.activeCategory === cat ? " active" : "") + '" data-category="' + escapeHtml(cat) + '">' + escapeHtml(cat) + '</button>'
   ).join("");
+  row.querySelectorAll("[data-category]").forEach((btn) => {
+    btn.addEventListener("click", () => setActiveCategory(btn.dataset.category));
+  });
 }
 
 function setActiveCategory(cat) {
@@ -502,8 +505,24 @@ function escapeHtml(str) {
  * Les URLs qui ne viennent pas de Cloudinary (lien externe collé à la main)
  * sont retournées telles quelles, sans y toucher.
  */
+/**
+ * N'autorise que les URLs http(s) (ou les data: URI d'image, inoffensives)
+ * comme source d'image/vidéo. Bloque explicitement javascript:, data:text/html
+ * et autres schémas potentiellement exécutables, quelle que soit leur origine
+ * (protection en profondeur, en plus de l'échappement HTML systématique).
+ */
+function isSafeMediaUrl(url) {
+  if (!url) return false;
+  const trimmed = String(url).trim();
+  if (/^https:\/\//i.test(trimmed)) return true;
+  if (/^http:\/\//i.test(trimmed)) return true;
+  if (/^data:image\//i.test(trimmed)) return true;
+  return false;
+}
+
 function cldOptimize(url, width) {
-  if (!url || url.indexOf("res.cloudinary.com") === -1) return url;
+  if (!isSafeMediaUrl(url)) return "";
+  if (url.indexOf("res.cloudinary.com") === -1) return url;
   if (url.indexOf("/upload/f_auto") !== -1) return url; // déjà optimisée
   const params = "f_auto,q_auto,c_limit,w_" + (width || 1200);
   return url.replace("/upload/", "/upload/" + params + "/");
