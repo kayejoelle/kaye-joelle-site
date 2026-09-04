@@ -135,6 +135,7 @@ function renderSiteContent() {
   setText("hero-eyebrow", txt("heroEyebrow"));
   setText("hero-name", txt("heroName"));
   setText("hero-tagline", txt("heroTagline"));
+  renderHeroBg();
   setText("nav-brand-btn", txt("heroName"));
 
   setText("intro-eyebrow", txt("introEyebrow"));
@@ -180,6 +181,20 @@ function renderSiteContent() {
   setText("footer-copyright", txt("footerCopyright"));
 
   document.title = txt("heroName") + (txt("heroEyebrow") ? " - " + txt("heroEyebrow") : "");
+}
+
+function renderHeroBg() {
+  const wrap = document.getElementById("hero-bg");
+  if (!wrap) return;
+  const videoUrl = txt("heroBackgroundVideoUrl");
+  const imageUrl = txt("heroBackgroundImageUrl");
+  if (videoUrl) {
+    wrap.innerHTML = '<video src="' + escapeHtml(videoUrl) + '" autoplay muted loop playsinline></video>';
+  } else if (imageUrl) {
+    wrap.innerHTML = '<img src="' + escapeHtml(imageUrl) + '" alt="">';
+  } else {
+    wrap.innerHTML = "";
+  }
 }
 
 function renderIntroMedia() {

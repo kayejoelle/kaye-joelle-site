@@ -34,6 +34,7 @@
 
 <!-- ============================================================= HERO -->
 <section id="home" class="hero">
+  <div class="hero-bg" id="hero-bg"></div>
   <div class="hero-overlay"></div>
   <div class="container hero-content">
     <p class="eyebrow" id="hero-eyebrow"></p>
@@ -235,6 +236,9 @@
       <div><label class="admin-label">Sur-titre</label><input class="admin-input" id="draft-heroEyebrow"></div>
       <div><label class="admin-label">Nom</label><input class="admin-input" id="draft-heroName"></div>
       <div><label class="admin-label">Accroche</label><textarea class="admin-input" id="draft-heroTagline" rows="2"></textarea></div>
+      <div><label class="admin-label">Image ou vidéo de fond</label><div id="hero-bg-picker"></div>
+        <button type="button" class="btn-outline btn-small" style="width:fit-content; margin-top:0.5rem;" onclick="deleteHeroBackground()">🗑 Retirer l'arrière-plan</button>
+      </div>
     </div>
 
     <div class="hairline" style="padding-top:1.25rem;"></div>

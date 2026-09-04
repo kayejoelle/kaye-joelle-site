@@ -270,8 +270,11 @@ const GENERAL_FIELD_IDS = [
   "footerName", "footerCopyright",
 ];
 
+let generalOriginalSnapshot = {};
+
 function renderGeneralTab() {
   const c = adminState.content;
+  generalOriginalSnapshot = Object.assign({}, c);
   GENERAL_FIELD_IDS.forEach((key) => {
     const el = document.getElementById("draft-" + key);
     if (el) el.value = c[key] || "";
@@ -283,6 +286,13 @@ function renderGeneralTab() {
   const introTall = document.getElementById("draft-introTall");
   if (introTall) introTall.checked = c.introTall === "true";
 
+  renderMediaPicker("hero-bg-picker", {
+    imageValue: c.heroBackgroundImageUrl || "", imagePublicId: c.heroBackgroundImagePublicId || "",
+    videoValue: c.heroBackgroundVideoUrl || "", videoPublicId: c.heroBackgroundVideoPublicId || "",
+    onImageChange: (url, publicId) => { adminState.content.heroBackgroundImageUrl = url; adminState.content.heroBackgroundImagePublicId = publicId || ""; },
+    onVideoChange: (url, publicId) => { adminState.content.heroBackgroundVideoUrl = url; adminState.content.heroBackgroundVideoPublicId = publicId || ""; },
+    withVideo: true,
+  });
   renderMediaPicker("intro-image-picker", {
     imageValue: c.introImageUrl || "", imagePublicId: c.introImagePublicId || "",
     videoValue: c.introVideoUrl || "", videoPublicId: c.introVideoPublicId || "",
@@ -311,6 +321,10 @@ async function saveSiteContent() {
     entries.statEnabled = document.getElementById("draft-statEnabled").checked ? "true" : "false";
     entries.stat2Enabled = document.getElementById("draft-stat2Enabled").checked ? "true" : "false";
     entries.introTall = document.getElementById("draft-introTall").checked ? "true" : "false";
+    entries.heroBackgroundImageUrl = adminState.content.heroBackgroundImageUrl || "";
+    entries.heroBackgroundImagePublicId = adminState.content.heroBackgroundImagePublicId || "";
+    entries.heroBackgroundVideoUrl = adminState.content.heroBackgroundVideoUrl || "";
+    entries.heroBackgroundVideoPublicId = adminState.content.heroBackgroundVideoPublicId || "";
     entries.introImageUrl = adminState.content.introImageUrl || "";
     entries.introImagePublicId = adminState.content.introImagePublicId || "";
     entries.introVideoUrl = adminState.content.introVideoUrl || "";
@@ -324,11 +338,40 @@ async function saveSiteContent() {
     adminState.content = Object.assign({}, adminState.content, entries);
     done("✓ Enregistré");
     showToast("Textes du site enregistrés.");
+
+    // Nettoyage Cloudinary différé : uniquement les fichiers réellement
+    // remplacés/retirés, et seulement une fois l'enregistrement confirmé.
+    const publicIdKeys = [
+      ["heroBackgroundImagePublicId", "image"], ["heroBackgroundVideoPublicId", "video"],
+      ["introImagePublicId", "image"], ["introVideoPublicId", "video"],
+      ["aboutImagePublicId", "image"], ["aboutVideoPublicId", "video"],
+    ];
+    const toClean = [];
+    publicIdKeys.forEach(([key, type]) => {
+      const oldId = generalOriginalSnapshot[key];
+      const newId = entries[key];
+      if (oldId && oldId !== newId) toClean.push({ publicId: oldId, type });
+    });
+    if (toClean.length) cleanupCloudinaryAssets(toClean);
   } catch (err) {
     console.error(err);
     done("Réessayer", true);
     showAdminError("Échec de l'enregistrement : " + err.message);
   }
+}
+
+function deleteHeroBackground() {
+  adminState.content.heroBackgroundImageUrl = "";
+  adminState.content.heroBackgroundImagePublicId = "";
+  adminState.content.heroBackgroundVideoUrl = "";
+  adminState.content.heroBackgroundVideoPublicId = "";
+  renderMediaPicker("hero-bg-picker", {
+    imageValue: "", imagePublicId: "", videoValue: "", videoPublicId: "",
+    onImageChange: (url, publicId) => { adminState.content.heroBackgroundImageUrl = url; adminState.content.heroBackgroundImagePublicId = publicId || ""; },
+    onVideoChange: (url, publicId) => { adminState.content.heroBackgroundVideoUrl = url; adminState.content.heroBackgroundVideoPublicId = publicId || ""; },
+    withVideo: true,
+  });
+  showToast("Arrière-plan retiré — cliquez sur « Enregistrer » pour confirmer.");
 }
 
 function deleteStatBlock() {
