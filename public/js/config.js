@@ -14,8 +14,8 @@
 
 window.APP_CONFIG = {
   // Dashboard Supabase → Project Settings → API
-  SUPABASE_URL: "https://VOTRE-PROJET.supabase.co",
-  SUPABASE_ANON_KEY: "VOTRE_CLE_ANON_PUBLIQUE",
+  SUPABASE_URL: "https://elunxpuovczmjqrgjxfk.supabase.co",
+  SUPABASE_ANON_KEY: "sb_publishable_DTeCfF_1CByMfYGlqIcyYQ_3IiD_7b3",
 
   // Dashboard Cloudinary → Settings → Upload → Upload presets (mode "Unsigned")
   CLOUDINARY_CLOUD_NAME: "jkaye",
